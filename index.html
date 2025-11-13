@@ -1,0 +1,316 @@
+﻿<!DOCTYPE html>
+
+<html lang="de">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Das Projekt-Dashboard</title>
+
+    <!-- LÃ¤dt Tailwind CSS fÃ¼r das Styling -->
+
+    <link rel="stylesheet" href="/styles/main.css" />
+
+    <style>
+
+        /* Verwendet die Inter-Schriftart fÃ¼r ein sauberes Aussehen */
+
+        body {
+
+            font-family: 'Inter', sans-serif;
+
+        }
+
+        /* Kleinere Scrollbalken in Webkit-Browsern */
+
+        ::-webkit-scrollbar {
+
+            width: 6px;
+
+            height: 6px;
+
+        }
+
+        ::-webkit-scrollbar-thumb {
+
+            background: #4a5568; /* gray-600 */
+
+            border-radius: 3px;
+
+        }
+
+    </style>
+
+    <!-- LÃ¤dt die Inter-Schriftart von Google Fonts -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body class="min-h-dvh bg-gradient-to-b from-gray-950 via-gray-900 to-gray-900 text-gray-200 p-4 md:p-8">
+
+
+
+    <div class="max-w-4xl mx-auto">
+
+
+
+        <!-- KOPFZEILE -->
+
+        <header class="mb-8">
+
+            <h1 class="text-4xl font-bold text-white mb-2">Das Projekt-Dashboard</h1>
+
+            <p class="text-xl text-gray-400">Von der vagen Idee zur validierten Hypothese.</p>
+
+        </header>
+
+
+
+        <main>
+
+            <!-- SEKTION 1: HYPOTHESE -->
+
+            <section class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6 ring-1 ring-white/10">
+
+                <h2 class="text-2xl font-semibold text-white mb-4">Sektion 1: Die Hypothese (Das Problem)</h2>
+
+                <div class="space-y-4">
+
+                    <div>
+
+                        <label for="problem" class="block text-sm font-medium text-gray-300 mb-1">Das Problem:</label>
+
+                        <textarea id="problem" rows="3" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Welches spezifische, dringende Problem lÃ¶se ich?"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="solution" class="block text-sm font-medium text-gray-300 mb-1">Die LÃ¶sung:</label>
+
+                        <textarea id="solution" rows="3" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Wie lÃ¶st mein Produkt dieses Problem auf eine einzigartige Weise?"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="pitch" class="block text-sm font-medium text-gray-300 mb-1">Der "Elevator Pitch" (1 Satz):</label>
+
+                        <textarea id="pitch" rows="2" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Kann ich es in einem Satz erklÃ¤ren?"></textarea>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- SEKTION 2: ZIELGRUPPEN-PERSONA -->
+
+            <section class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6 ring-1 ring-white/10">
+
+                <h2 class="text-2xl font-semibold text-white mb-4">Sektion 2: Die Zielgruppen-Persona (Der Kunde)</h2>
+
+                <p class="text-gray-400 mb-4">Wer genau hat dieses Problem? ("Jeder" ist keine Antwort)</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <div>
+
+                        <label for="persona_name" class="block text-sm font-medium text-gray-300 mb-1">Name der Persona:</label>
+
+                        <textarea id="persona_name" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Maria, die vielbeschÃ¤ftigte Studentin"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="persona_demographics" class="block textsm font-medium text-gray-300 mb-1">Demografie:</label>
+
+                        <textarea id="persona_demographics" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Alter, Beruf, Ort, etc."></textarea>
+
+                    </div>
+
+                </div>
+
+                <div class="mt-4">
+
+                    <label for="persona_pains" class="block text-sm font-medium text-gray-300 mb-1">Schmerzpunkte (Pains):</label>
+
+                    <textarea id="persona_pains" rows="3" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Was frustriert sie/ihn im Moment? Was sind die Probleme?"></textarea>
+
+                </div>
+
+                <div class="mt-4">
+
+                    <label for="persona_gains" class="block text-sm font-medium text-gray-300 mb-1">GewÃ¼nschte Ergebnisse (Gains):</label>
+
+                    <textarea id="persona_gains" rows="3" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="Was ist ihr/sein ideales Szenario? Was wollen sie erreichen?"></textarea>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- SEKTION 3: MVP (MINIMUM VIABLE PRODUCT) -->
+
+            <section class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6 ring-1 ring-white/10">
+
+                <h2 class="text-2xl font-semibold text-white mb-4">Sektion 3: Das MVP (Minimum Viable Product)</h2>
+
+                <p class="text-gray-400 mb-4">Was ist das absolute Minimum, das ich bauen muss, um die Hypothese zu testen?</p>
+
+                <div class="space-y-4">
+
+                    <div>
+
+                        <label for="mvp_core1" class="block text-sm font-medium text-gray-300 mb-1">Kernfunktion 1:</label>
+
+                        <textarea id="mvp_core1" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Benutzer kann sich registrieren"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="mvp_core2" class="block text-sm font-medium text-gray-300 mb-1">Kernfunktion 2:</label>
+
+                        <textarea id="mvp_core2" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Benutzer kann ein Foto hochladen"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="mvp_core3" class="block text-sm font-medium text-gray-300 mb-1">Kernfunktion 3:</label>
+
+                        <textarea id="mvp_core3" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Foto wird mit einem Wasserzeichen versehen"></textarea>
+
+                    </div>
+
+                    <div class="pt-2">
+
+                        <label for="mvp_anti_features" class="block text-sm font-medium text-yellow-300 mb-1">"Was es NICHT ist" (Anti-Features):</label>
+
+                        <textarea id="mvp_anti_features" rows="3" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="WICHTIG: Was baue ich absichtlich NICHT? z.B. Kein Chat, keine Kommentare, keine Profile..."></textarea>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- SEKTION 4: VALIDIERUNGSPLAN -->
+
+            <section class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6 ring-1 ring-white/10">
+
+                <h2 class="text-2xl font-semibold text-white mb-4">Sektion 4: Der Validierungsplan (Der Test)</h2>
+
+                <p class="text-gray-400 mb-4">Wie beweise ich, dass meine Hypothese stimmt, BEVOR ich das MVP baue?</p>
+
+                <div class="space-y-4">
+
+                    <div>
+
+                        <label for="validation_method" class="block text-sm font-medium text-gray-300 mb-1">Testmethode:</label>
+
+                        <textarea id="validation_method" rows="2" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Landing Page erstellen und Anmeldungen messen, 10 Interviews mit Personas fÃ¼hren"></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="validation_success" class="block text-sm font-medium text-gray-300 mb-1">Erfolgsmetrik (Klares "Go"):</label>
+
+                        <textarea id="validation_success" rows="2" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. 20% Conversion Rate, 8/10 Interviewpartner sagen 'Ich wÃ¼rde das sofort nutzen'"></textarea>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- SEKTION 5: RESSOURCEN-CHECK -->
+
+            <section class="bg-gray-800 p-6 rounded-lg shadow-xl mb-6 ring-1 ring-white/10">
+
+                <h2 class="text-2xl font-semibold text-white mb-4">Sektion 5: Ressourcen-Check (Die RealitÃ¤t)</h2>
+
+                <div class="space-y-4">
+
+                    <div>
+
+                        <label for="resources_stack" class="block text-sm font-medium text-gray-300 mb-1">Technologie-Stack (GeschÃ¤tzt):</label>
+
+                        <textarea id="resources_stack" rows="2" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. HTML/CSS/JS, React + Firebase, Wordpress..."></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="resources_budget" class="block text-sm font-medium text-gray-300 mb-1">Budget (GeschÃ¤tzt):</label>
+
+                        <textarea id="resources_budget" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. 0 â‚¬ - Nur meine Zeit, 100 â‚¬ fÃ¼r Hosting/Domains..."></textarea>
+
+                    </div>
+
+                    <div>
+
+                        <label for="resources_time" class="block text-sm font-medium text-gray-300 mb-1">Zeitrahmen (GeschÃ¤tzt):</label>
+
+                        <textarea id="resources_time" rows="1" class="w-full bg-gray-800 text-gray-200 placeholder-gray-400 rounded-md ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-brand-500 focus:outline-none p-3" placeholder="z.B. Ein Wochenende fÃ¼r Validierung, Zwei Wochen fÃ¼r MVP..."></textarea>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- FOOTER / AKTIONEN -->
+
+            <footer class="mt-8 text-center">
+
+                <button id="clearButton" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-5 rounded-lg shadow transition-all duration-200">
+
+                    Projekt zurÃ¼cksetzen
+
+                </button>
+
+                <p class="text-sm text-gray-500 mt-4">
+
+                    Alle Daten werden lokal in Ihrem Browser gespeichert.
+
+                </p>
+
+            </footer>
+
+        </main>
+
+    </div>
+
+
+
+    <script type="module" src="/scripts/main.js"></script>
+
+</body>
+
+</html>
+
+
+
+
+
