@@ -1,6 +1,16 @@
 ﻿import { auth, db, googleProvider } from './firebase.js';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 
 const fieldIds = [
   'problem', 'solution', 'pitch',
@@ -10,13 +20,20 @@ const fieldIds = [
   'resources_stack', 'resources_budget', 'resources_time',
 ];
 
-const storageKey = 'projektDashboardData';
+const LOCAL_STORAGE_PREFIX = 'projektDashboardData';
 
 let currentUser = null;
 let projectDocRef = null;
 let unsubscribeProject = null;
+let unsubscribeMembers = null;
+let unsubscribePendingInvites = null;
+let unsubscribeIncomingInvites = null;
 let isApplyingRemoteData = false;
 let pendingRemoteUpdates = {};
+
+let activeProjectId = null;
+let activeProjectName = 'Persönliches Projekt';
+let currentMembership = { role: 'owner' };
 
 const throttledLocalSave = throttle(saveLocalData, 200);
 const throttledFirestoreSave = throttle(persistRemoteUpdates, 500);
@@ -27,7 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
   autosizeAll();
   bindFieldListeners();
   setupClearButton();
+  setupInviteForm();
+  captureInviteFromUrl();
 });
+
+function storageKey() {
+  if (!currentUser || !activeProjectId) return `${LOCAL_STORAGE_PREFIX}:guest`;
+  return `${LOCAL_STORAGE_PREFIX}:${activeProjectId}`;
+}
 
 function setupAuthUi() {
   const signInButton = document.getElementById('signInButton');
@@ -67,12 +91,17 @@ function setupAuthUi() {
         if (signInButton) signInButton.classList.add('hidden');
         if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
         if (userEmail) userEmail.textContent = user.email ?? '';
-        await connectProject(user);
+        await initializeForUser(user);
       } else {
         userBadge.classList.add('hidden');
         userBadge.classList.remove('flex');
         if (signInButton) signInButton.classList.remove('hidden');
-        detachProject();
+        clearProjectSubscriptions();
+        activeProjectId = null;
+        activeProjectName = 'Persönliches Projekt';
+        currentMembership = { role: 'viewer' };
+        updateProjectLabel();
+        toggleTeamSection(false);
         loadLocalData();
         autosizeAll();
       }
@@ -80,11 +109,219 @@ function setupAuthUi() {
   });
 }
 
+async function initializeForUser(user) {
+  try {
+    await ensureOwnerProject(user);
+    await resolveActiveProject(user);
+    watchIncomingInvites(user);
+    toggleTeamSection(true);
+  } catch (error) {
+    console.error('Fehler bei der Initialisierung:', error);
+  }
+}
+
+async function ensureOwnerProject(user) {
+  const projectId = `${user.uid}-personal`;
+  const ref = doc(db, 'projects', projectId);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists()) {
+    const initialFields = getCurrentFieldValues();
+    await setDoc(ref, {
+      ownerId: user.uid,
+      name: 'Persönliches Projekt',
+      fields: initialFields,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  await setDoc(doc(db, 'projects', projectId, 'members', user.uid), {
+    role: 'owner',
+    email: user.email ?? '',
+    displayName: user.displayName ?? '',
+    addedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+async function resolveActiveProject(user) {
+  const stored = localStorage.getItem('activeProjectId');
+
+  if (stored) {
+    const existing = await getDoc(doc(db, 'projects', stored));
+    if (existing.exists()) {
+      await setActiveProject(stored);
+      return;
+    }
+    localStorage.removeItem('activeProjectId');
+  }
+
+  const defaultId = `${user.uid}-personal`;
+  await setActiveProject(defaultId);
+}
+
+async function setActiveProject(projectId) {
+  if (!currentUser) return;
+  if (activeProjectId === projectId) return;
+
+  clearProjectSubscriptions();
+  activeProjectId = projectId;
+  localStorage.setItem('activeProjectId', projectId);
+
+  projectDocRef = doc(db, 'projects', projectId);
+  const projectSnap = await getDoc(projectDocRef);
+
+  if (!projectSnap.exists()) {
+    await setDoc(projectDocRef, {
+      ownerId: currentUser.uid,
+      name: 'Projekt',
+      fields: getCurrentFieldValues(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  const data = projectSnap.data() ?? {};
+  activeProjectName = data.name ?? 'Projekt';
+  updateProjectLabel();
+
+  const membershipSnap = await getDoc(doc(db, 'projects', projectId, 'members', currentUser.uid));
+  currentMembership = membershipSnap.exists() ? membershipSnap.data() : { role: 'viewer' };
+  if (!membershipSnap.exists()) {
+    await setDoc(doc(db, 'projects', projectId, 'members', currentUser.uid), {
+      role: currentUser.uid === data.ownerId ? 'owner' : 'editor',
+      email: currentUser.email ?? '',
+      displayName: currentUser.displayName ?? '',
+      addedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+
+  subscribeToProject(projectId);
+  subscribeToMembers(projectId);
+  subscribeToPendingInvites(projectId);
+
+  loadIncomingInvitesVisibility();
+  bindFieldListeners();
+}
+
+function clearProjectSubscriptions() {
+  if (unsubscribeProject) unsubscribeProject();
+  if (unsubscribeMembers) unsubscribeMembers();
+  if (unsubscribePendingInvites) unsubscribePendingInvites();
+  if (unsubscribeIncomingInvites) unsubscribeIncomingInvites();
+  unsubscribeProject = null;
+  unsubscribeMembers = null;
+  unsubscribePendingInvites = null;
+  unsubscribeIncomingInvites = null;
+  projectDocRef = null;
+  pendingRemoteUpdates = {};
+}
+
+function subscribeToProject(projectId) {
+  if (unsubscribeProject) unsubscribeProject();
+  projectDocRef = doc(db, 'projects', projectId);
+
+  unsubscribeProject = onSnapshot(projectDocRef, (docSnap) => {
+    if (!docSnap.exists()) return;
+    const data = docSnap.data() ?? {};
+    activeProjectName = data.name ?? activeProjectName;
+    updateProjectLabel();
+
+    const remoteFields = data.fields ?? {};
+    isApplyingRemoteData = true;
+    fieldIds.forEach((id) => {
+      const element = document.getElementById(id);
+      if (!element) return;
+      const remoteValue = remoteFields[id] ?? '';
+      if (element.value !== remoteValue) {
+        element.value = remoteValue;
+        autosize(element);
+      }
+    });
+    isApplyingRemoteData = false;
+  }, (error) => {
+    console.error('Fehler beim Beobachten des Projekts:', error);
+  });
+}
+
+function subscribeToMembers(projectId) {
+  if (unsubscribeMembers) unsubscribeMembers();
+  const membersRef = collection(db, 'projects', projectId, 'members');
+
+  unsubscribeMembers = onSnapshot(membersRef, (snapshot) => {
+    const members = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
+
+    if (currentUser) {
+      const self = members.find((member) => member.id === currentUser.uid);
+      if (self) {
+        const previousRole = currentMembership?.role;
+        currentMembership = self;
+        if (previousRole !== currentMembership.role) {
+          updateProjectLabel();
+          subscribeToPendingInvites(projectId);
+        }
+      }
+    }
+
+    renderCollaborators(members);
+  }, (error) => {
+    console.error('Fehler beim Beobachten der Mitglieder:', error);
+  });
+}
+
+function subscribeToPendingInvites(projectId) {
+  if (unsubscribePendingInvites) unsubscribePendingInvites();
+  const container = document.getElementById('pendingInvites');
+
+  if (!currentUser || currentMembership.role !== 'owner') {
+    if (container) container.innerHTML = `<p class="text-xs text-gray-500">Nur Besitzer sehen offene Einladungen.</p>`;
+    unsubscribePendingInvites = null;
+    return;
+  }
+
+  const invitesQuery = query(
+    collection(db, 'projectInvites'),
+    where('projectId', '==', projectId),
+    where('status', '==', 'pending'),
+  );
+
+  unsubscribePendingInvites = onSnapshot(invitesQuery, (snapshot) => {
+    const invites = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
+    renderPendingInvites(invites);
+  }, (error) => {
+    console.error('Fehler beim Beobachten der Einladungen:', error);
+  });
+}
+
+function watchIncomingInvites(user) {
+  if (unsubscribeIncomingInvites) unsubscribeIncomingInvites();
+  const incomingQuery = query(
+    collection(db, 'projectInvites'),
+    where('invitedEmail', '==', (user.email ?? '').toLowerCase()),
+    where('status', '==', 'pending'),
+  );
+
+  unsubscribeIncomingInvites = onSnapshot(incomingQuery, (snapshot) => {
+    const invites = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
+    renderIncomingInvites(invites);
+  }, (error) => {
+    console.error('Fehler beim Beobachten eigener Einladungen:', error);
+  });
+}
+
 function bindFieldListeners() {
   fieldIds.forEach((id) => {
     const element = document.getElementById(id);
-    if (!element) return;
+    if (!element || element.dataset.bound === 'true') return;
 
+    element.dataset.bound = 'true';
     element.addEventListener('input', () => {
       autosize(element);
       if (isApplyingRemoteData) return;
@@ -97,55 +334,6 @@ function bindFieldListeners() {
       }
     });
   });
-}
-
-async function connectProject(user) {
-  try {
-    const projectId = `${user.uid}-personal`;
-    projectDocRef = doc(db, 'projects', projectId);
-    const snapshot = await getDoc(projectDocRef);
-
-    if (!snapshot.exists()) {
-      const initialFields = getCurrentFieldValues();
-      await setDoc(projectDocRef, {
-        ownerId: user.uid,
-        fields: initialFields,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    if (unsubscribeProject) unsubscribeProject();
-
-    unsubscribeProject = onSnapshot(projectDocRef, (docSnap) => {
-      if (!docSnap.exists()) return;
-      const data = docSnap.data();
-      const remoteFields = data?.fields ?? {};
-
-      isApplyingRemoteData = true;
-      fieldIds.forEach((id) => {
-        const element = document.getElementById(id);
-        if (!element) return;
-        const remoteValue = remoteFields[id] ?? '';
-        if (element.value !== remoteValue) {
-          element.value = remoteValue;
-          autosize(element);
-        }
-      });
-      isApplyingRemoteData = false;
-    });
-  } catch (error) {
-    console.error('Fehler beim Verbinden mit Firestore:', error);
-  }
-}
-
-function detachProject() {
-  if (unsubscribeProject) {
-    unsubscribeProject();
-    unsubscribeProject = null;
-  }
-  projectDocRef = null;
-  pendingRemoteUpdates = {};
 }
 
 async function persistRemoteUpdates() {
@@ -174,12 +362,12 @@ async function persistRemoteUpdates() {
 
 function saveLocalData() {
   const data = getCurrentFieldValues();
-  localStorage.setItem(storageKey, JSON.stringify(data));
+  localStorage.setItem(storageKey(), JSON.stringify(data));
   showSaved();
 }
 
 function loadLocalData() {
-  const dataString = localStorage.getItem(storageKey);
+  const dataString = localStorage.getItem(storageKey());
   if (!dataString) return;
 
   try {
@@ -188,11 +376,12 @@ function loadLocalData() {
       const element = document.getElementById(id);
       if (element && data[id] !== undefined) {
         element.value = data[id];
+        autosize(element);
       }
     });
   } catch (error) {
     console.error('Fehler beim Laden lokaler Daten:', error);
-    localStorage.removeItem(storageKey);
+    localStorage.removeItem(storageKey());
   }
 }
 
@@ -226,7 +415,7 @@ function setupClearButton() {
       }
     });
 
-    localStorage.removeItem(storageKey);
+    localStorage.removeItem(storageKey());
 
     if (currentUser && projectDocRef) {
       try {
@@ -246,7 +435,256 @@ function setupClearButton() {
   });
 }
 
-// UX helpers
+function setupInviteForm() {
+  const inviteForm = document.getElementById('inviteForm');
+  if (!inviteForm) return;
+
+  inviteForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!currentUser || !activeProjectId) return;
+    if (currentMembership.role !== 'owner') {
+      alert('Nur Besitzer können Einladungen versenden.');
+      return;
+    }
+
+    const emailInput = document.getElementById('inviteEmail');
+    const roleSelect = document.getElementById('inviteRole');
+    if (!emailInput || !roleSelect) return;
+
+    const invitedEmail = emailInput.value.trim().toLowerCase();
+    const role = roleSelect.value || 'editor';
+
+    if (!invitedEmail) {
+      alert('Bitte eine gültige E-Mail-Adresse eingeben.');
+      return;
+    }
+
+    try {
+      const inviteId = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : `${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      const inviteRef = doc(db, 'projectInvites', inviteId);
+      await setDoc(inviteRef, {
+        projectId: activeProjectId,
+        projectName: activeProjectName,
+        invitedEmail,
+        role,
+        status: 'pending',
+        createdBy: currentUser.uid,
+        createdByEmail: currentUser.email ?? '',
+        createdAt: serverTimestamp(),
+      });
+      emailInput.value = '';
+      showSavedFeedback('Einladung erstellt. Link wurde kopiert.');
+      const inviteLink = `${window.location.origin}?invite=${inviteId}`;
+      await navigator.clipboard.writeText(inviteLink);
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Einladung:', error);
+      alert('Die Einladung konnte nicht erstellt werden.');
+    }
+  });
+}
+
+function renderCollaborators(members) {
+  const list = document.getElementById('collaboratorList');
+  if (!list) return;
+
+  if (!members.length) {
+    list.innerHTML = `<p class="text-gray-500 text-sm">Noch keine Teammitglieder vorhanden.</p>`;
+    return;
+  }
+
+  list.innerHTML = members.map((member) => `
+    <div class="flex items-center justify-between rounded-md border border-white/10 bg-gray-900/60 px-4 py-3">
+      <div>
+        <p class="text-sm font-medium text-gray-100">${member.displayName || 'Unbekannt'}</p>
+        <p class="text-xs text-gray-400">${member.email || member.id}</p>
+      </div>
+      <span class="text-xs uppercase tracking-wide text-brand-300">${member.role ?? 'editor'}</span>
+    </div>
+  `).join('');
+}
+
+function renderPendingInvites(invites) {
+  const container = document.getElementById('pendingInvites');
+  if (!container) return;
+
+  if (!invites.length) {
+    container.innerHTML = `<p class="text-xs text-gray-500">Keine offenen Einladungen.</p>`;
+    return;
+  }
+
+  container.innerHTML = invites.map((invite) => `
+    <div class="border border-white/10 rounded-md bg-gray-800/80 px-3 py-2 text-xs flex items-center justify-between gap-2">
+      <div>
+        <p class="text-gray-200">${invite.invitedEmail}</p>
+        <p class="text-gray-500 uppercase tracking-wide">${invite.role}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button data-action="copy-invite" data-id="${invite.id}" class="text-brand-300 hover:text-brand-200">Link kopieren</button>
+        <button data-action="revoke-invite" data-id="${invite.id}" class="text-red-400 hover:text-red-300">Widerrufen</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('button[data-action="copy-invite"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const inviteId = button.dataset.id;
+      const link = `${window.location.origin}?invite=${inviteId}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        showSavedFeedback('Einladungslink kopiert.');
+      } catch {
+        alert('Konnte Link nicht kopieren.');
+      }
+    });
+  });
+
+  container.querySelectorAll('button[data-action="revoke-invite"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const inviteId = button.dataset.id;
+      if (!inviteId) return;
+      try {
+        await updateDoc(doc(db, 'projectInvites', inviteId), {
+          status: 'revoked',
+          revokedAt: serverTimestamp(),
+          revokedBy: currentUser?.uid ?? null,
+        });
+        showSavedFeedback('Einladung widerrufen.');
+      } catch (error) {
+        console.error('Fehler beim Widerrufen:', error);
+        alert('Einladung konnte nicht widerrufen werden.');
+      }
+    });
+  });
+}
+
+function renderIncomingInvites(invites) {
+  const section = document.getElementById('incomingInvitesSection');
+  const list = document.getElementById('incomingInvitesList');
+  if (!section || !list) return;
+  const storedToken = localStorage.getItem('pendingInviteToken');
+
+  if (!currentUser) {
+    section.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+
+  if (!invites.length) {
+    section.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+
+  section.classList.remove('hidden');
+  list.innerHTML = invites.map((invite) => `
+    <div class="rounded-md border border-white/10 bg-gray-800/80 px-4 py-3 ${storedToken === invite.id ? 'ring-2 ring-brand-400/70' : ''}">
+      <p class="text-sm text-gray-100 mb-1">Du wurdest zu <span class="font-semibold">${invite.projectName ?? 'einem Projekt'}</span> eingeladen.</p>
+      <p class="text-xs text-gray-400 mb-2">Rolle: ${invite.role}</p>
+      <div class="flex items-center gap-2">
+        <button data-action="accept-invite" data-id="${invite.id}" class="bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-3 py-1 rounded">Annehmen</button>
+        <button data-action="dismiss-invite" data-id="${invite.id}" class="text-xs text-gray-400 hover:text-gray-200">Ablehnen</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('button[data-action="accept-invite"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const inviteId = button.dataset.id;
+      const invite = invites.find((item) => item.id === inviteId);
+      if (!invite) return;
+      await acceptInvite(inviteId, invite);
+      localStorage.removeItem('pendingInviteToken');
+    });
+  });
+
+  list.querySelectorAll('button[data-action="dismiss-invite"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const inviteId = button.dataset.id;
+      try {
+        await updateDoc(doc(db, 'projectInvites', inviteId), {
+          status: 'dismissed',
+          dismissedAt: serverTimestamp(),
+          dismissedBy: currentUser?.uid ?? null,
+        });
+        if (localStorage.getItem('pendingInviteToken') === inviteId) {
+          localStorage.removeItem('pendingInviteToken');
+        }
+      } catch (error) {
+        console.error('Fehler beim Ablehnen der Einladung:', error);
+      }
+    });
+  });
+}
+
+async function acceptInvite(inviteId, invite) {
+  if (!currentUser) return;
+  try {
+    const memberRef = doc(db, 'projects', invite.projectId, 'members', currentUser.uid);
+    await setDoc(memberRef, {
+      role: invite.role,
+      email: currentUser.email ?? '',
+      displayName: currentUser.displayName ?? '',
+      addedAt: serverTimestamp(),
+    }, { merge: true });
+
+    await updateDoc(doc(db, 'projectInvites', inviteId), {
+      status: 'accepted',
+      acceptedAt: serverTimestamp(),
+      acceptedBy: currentUser.uid,
+    });
+
+    await setActiveProject(invite.projectId);
+    showSavedFeedback('Einladung angenommen. Projekt aktiviert.');
+    localStorage.removeItem('pendingInviteToken');
+  } catch (error) {
+    console.error('Fehler beim Annehmen der Einladung:', error);
+    alert('Einladung konnte nicht angenommen werden.');
+  }
+}
+
+function updateProjectLabel() {
+  const nameEl = document.getElementById('activeProjectName');
+  if (nameEl) nameEl.textContent = activeProjectName;
+
+  const teamSection = document.getElementById('teamSection');
+  const inviteForm = document.getElementById('inviteForm');
+  if (teamSection) {
+    const isOwner = currentMembership?.role === 'owner';
+    if (isOwner) {
+      teamSection.classList.remove('hidden');
+      if (inviteForm) inviteForm.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+      teamSection.classList.remove('hidden');
+      if (inviteForm) inviteForm.classList.add('opacity-50', 'pointer-events-none');
+    }
+  }
+}
+
+function toggleTeamSection(visible) {
+  const teamSection = document.getElementById('teamSection');
+  if (!teamSection) return;
+  if (visible) teamSection.classList.remove('hidden');
+  else teamSection.classList.add('hidden');
+}
+
+function loadIncomingInvitesVisibility() {
+  const section = document.getElementById('incomingInvitesSection');
+  if (section && !currentUser) {
+    section.classList.add('hidden');
+  }
+}
+
+function captureInviteFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('invite');
+  if (token) {
+    localStorage.setItem('pendingInviteToken', token);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+
 function autosize(element) {
   element.style.height = 'auto';
   element.style.height = `${element.scrollHeight}px`;
@@ -285,3 +723,17 @@ const showSaved = (() => {
     t = setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 300ms'; }, 600);
   };
 })();
+
+function showSavedFeedback(message) {
+  const el = document.createElement('div');
+  el.textContent = message;
+  el.className = 'fixed bottom-16 left-1/2 -translate-x-1/2 z-50 rounded-md bg-gray-900/90 text-gray-100 px-4 py-2 shadow ring-1 ring-white/10 text-sm';
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 300ms';
+    setTimeout(() => {
+      if (document.body.contains(el)) document.body.removeChild(el);
+    }, 320);
+  }, 1200);
+}

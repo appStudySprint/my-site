@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /projects/{projectId} {
+      allow read: if isProjectMember(projectId);
+      allow write: if isOwner(projectId) || (isEditor(projectId) && allowsFieldUpdate());
+
+      match /members/{memberId} {
+        allow read: if isProjectMember(projectId);
+        allow write, delete: if isOwner(projectId);
+      }
+    }
+
+    match /projectInvites/{inviteId} {
+      allow create: if isOwner(request.resource.data.projectId);
+      allow read: if isInviteVisible(resource.data);
+      allow update: if isOwner(resource.data.projectId) ||
+        (isInvitee(resource.data) && isInviteStatusChange(resource.data, request.resource.data));
+      allow delete: if isOwner(resource.data.projectId);
+    }
+  }
+
+  function authUid() {
+    return request.auth != null ? request.auth.uid : null;
+  }
+
+  function authEmail() {
+    return request.auth != null && request.auth.token.email != null
+      ? request.auth.token.email
+      : null;
+  }
+
+  function isOwner(projectId) {
+    return authUid() != null &&
+      exists(/databases/$(database)/documents/projects/$(projectId)) &&
+      get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == authUid();
+  }
+
+  function isProjectMember(projectId) {
+    return authUid() != null &&
+      exists(/databases/$(database)/documents/projects/$(projectId)/members/$(authUid()));
+  }
+
+  function memberRole(projectId) {
+    return isProjectMember(projectId)
+      ? get(/databases/$(database)/documents/projects/$(projectId)/members/$(authUid())).data.role
+      : null;
+  }
+
+  function isEditor(projectId) {
+    return memberRole(projectId) == 'owner' || memberRole(projectId) == 'editor';
+  }
+
+  function allowsFieldUpdate() {
+    return request.resource.data.keys().hasOnly(['fields', 'updatedAt', 'lastEditor', 'name', 'ownerId', 'createdAt']);
+  }
+
+  function isInviteVisible(invite) {
+    return invite != null && (
+      (invite.status == 'pending' && isOwner(invite.projectId)) ||
+      (authEmail() != null && invite.invitedEmail == authEmail())
+    );
+  }
+
+  function isInvitee(invite) {
+    return invite != null && authEmail() != null && invite.invitedEmail == authEmail();
+  }
+
+  function isInviteStatusChange(before, after) {
+    return before != null && after != null &&
+      before.status == 'pending' &&
+      (after.status == 'accepted' || after.status == 'dismissed');
+  }
+}
+
