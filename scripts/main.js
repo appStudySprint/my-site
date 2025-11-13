@@ -475,9 +475,32 @@ function setupInviteForm() {
         createdAt: serverTimestamp(),
       });
       emailInput.value = '';
-      showSavedFeedback('Einladung erstellt. Link wurde kopiert.');
-      const inviteLink = `${window.location.origin}?invite=${inviteId}`;
-      await navigator.clipboard.writeText(inviteLink);
+      const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${inviteId}`;
+      
+      // Kopiere Link in Zwischenablage
+      try {
+        await navigator.clipboard.writeText(inviteLink);
+        showSavedFeedback('Einladung erstellt. Link wurde kopiert.');
+      } catch (err) {
+        // Fallback: Zeige Link in Alert, falls Clipboard nicht funktioniert
+        alert(`Einladung erstellt!\n\nEinladungslink:\n${inviteLink}\n\n(Dieser Link wurde in die Zwischenablage kopiert, falls möglich)`);
+      }
+      
+      // Zeige Link auch visuell an
+      const linkDisplay = document.createElement('div');
+      linkDisplay.className = 'mt-3 p-3 bg-gray-900/80 rounded border border-brand-500/30';
+      linkDisplay.innerHTML = `
+        <p class="text-xs text-gray-400 mb-1">Einladungslink:</p>
+        <div class="flex items-center gap-2">
+          <input type="text" readonly value="${inviteLink}" class="flex-1 bg-gray-800 text-gray-200 text-xs px-2 py-1 rounded border border-white/10" id="inviteLinkInput-${inviteId}" />
+          <button class="bg-brand-500 hover:bg-brand-600 text-white text-xs px-3 py-1 rounded" onclick="navigator.clipboard.writeText('${inviteLink}').then(() => alert('Link kopiert!'))">Kopieren</button>
+        </div>
+      `;
+      const pendingContainer = document.getElementById('pendingInvites');
+      if (pendingContainer) {
+        pendingContainer.insertBefore(linkDisplay, pendingContainer.firstChild);
+        setTimeout(() => linkDisplay.remove(), 10000); // Entferne nach 10 Sekunden
+      }
     } catch (error) {
       console.error('Fehler beim Erstellen der Einladung:', error);
       alert('Die Einladung konnte nicht erstellt werden.');
@@ -514,26 +537,47 @@ function renderPendingInvites(invites) {
     return;
   }
 
-  container.innerHTML = invites.map((invite) => `
-    <div class="border border-white/10 rounded-md bg-gray-800/80 px-3 py-2 text-xs flex items-center justify-between gap-2">
-      <div>
-        <p class="text-gray-200">${invite.invitedEmail}</p>
-        <p class="text-gray-500 uppercase tracking-wide">${invite.role}</p>
+  container.innerHTML = invites.map((invite) => {
+    const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${invite.id}`;
+    return `
+    <div class="border border-white/10 rounded-md bg-gray-800/80 px-3 py-2 text-xs mb-2">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <p class="text-gray-200 font-medium">${invite.invitedEmail}</p>
+          <p class="text-gray-500 uppercase tracking-wide text-[10px]">${invite.role}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button data-action="copy-invite" data-id="${invite.id}" class="text-brand-300 hover:text-brand-200 text-[10px]">Link kopieren</button>
+          <button data-action="revoke-invite" data-id="${invite.id}" class="text-red-400 hover:text-red-300 text-[10px]">Widerrufen</button>
+        </div>
       </div>
-      <div class="flex items-center gap-2">
-        <button data-action="copy-invite" data-id="${invite.id}" class="text-brand-300 hover:text-brand-200">Link kopieren</button>
-        <button data-action="revoke-invite" data-id="${invite.id}" class="text-red-400 hover:text-red-300">Widerrufen</button>
+      <div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+        <input type="text" readonly value="${inviteLink}" class="flex-1 bg-gray-900/60 text-gray-300 text-[10px] px-2 py-1 rounded border border-white/5 font-mono" onclick="this.select()" />
+        <button data-action="copy-invite-full" data-link="${inviteLink}" class="bg-brand-500 hover:bg-brand-600 text-white text-[10px] px-2 py-1 rounded">Kopieren</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   container.querySelectorAll('button[data-action="copy-invite"]').forEach((button) => {
     button.addEventListener('click', async () => {
       const inviteId = button.dataset.id;
-      const link = `${window.location.origin}?invite=${inviteId}`;
+      const link = `${window.location.origin}${window.location.pathname}?invite=${inviteId}`;
       try {
         await navigator.clipboard.writeText(link);
         showSavedFeedback('Einladungslink kopiert.');
+      } catch {
+        alert('Konnte Link nicht kopieren.');
+      }
+    });
+  });
+
+  container.querySelectorAll('button[data-action="copy-invite-full"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const link = button.dataset.link;
+      try {
+        await navigator.clipboard.writeText(link);
+        showSavedFeedback('Link kopiert!');
       } catch {
         alert('Konnte Link nicht kopieren.');
       }
