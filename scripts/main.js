@@ -43,6 +43,10 @@ let currentMembership = { role: 'owner' };
 const throttledLocalSave = throttle(saveLocalData, 200);
 const throttledFirestoreSave = throttle(persistRemoteUpdates, 500);
 
+// Wizard State Management
+let currentStep = 1;
+const totalSteps = 6;
+
 document.addEventListener('DOMContentLoaded', () => {
   setupAuthUi();
   loadLocalData();
@@ -52,6 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupInviteForm();
   captureInviteFromUrl();
   setupAnalyzeButtons();
+  setupWizard();
+  showStep(1); // Starte mit Schritt 1
 });
 
 function storageKey() {
@@ -835,8 +841,8 @@ function markdownToHtml(markdown) {
       }
       const headingText = trimmedLine.substring(4).trim();
       // Fett in Überschriften verarbeiten
-      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
-      result.push(`<h4 class="text-lg font-semibold text-gray-200 mt-3 mb-1">${processedHeading}</h4>`);
+      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      result.push(`<h4>${processedHeading}</h4>`);
       continue;
     }
     
@@ -847,8 +853,8 @@ function markdownToHtml(markdown) {
       }
       const headingText = trimmedLine.substring(3).trim();
       // Fett in Überschriften verarbeiten
-      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
-      result.push(`<h3 class="text-xl font-bold text-white mt-4 mb-2">${processedHeading}</h3>`);
+      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      result.push(`<h3>${processedHeading}</h3>`);
       continue;
     }
     
@@ -862,7 +868,7 @@ function markdownToHtml(markdown) {
       }
       // Fett in Listenpunkten verarbeiten
       let listItem = listMatch[1];
-      listItem = listItem.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
+      listItem = listItem.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       result.push(`<li>${listItem}</li>`);
     } else {
       if (inList) {
@@ -873,8 +879,8 @@ function markdownToHtml(markdown) {
       if (trimmedLine) {
         // Fett: **text** oder __text__ (zuerst, damit sie nicht als Kursiv erkannt werden)
         let processedLine = trimmedLine
-          .replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>')
-          .replace(/__(.+?)__/g, '<strong class="text-brand-400">$1</strong>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/__(.+?)__/g, '<strong>$1</strong>')
           // Kursiv: *text* oder _text_ (nur wenn nicht am Anfang/Ende und nicht Teil von **)
           .replace(/([^*])\*([^*]+?)\*([^*])/g, '$1<em>$2</em>$3')
           .replace(/([^_])_([^_]+?)_([^_])/g, '$1<em>$2</em>$3');
@@ -1010,6 +1016,10 @@ async function analyzeSection(sectionName) {
     const htmlResponse = markdownToHtml(aiResponse);
     responseDiv.innerHTML = htmlResponse;
     responseDiv.classList.remove('hidden');
+    // Stelle sicher, dass prose-invert Klasse vorhanden ist
+    if (!responseDiv.classList.contains('prose-invert')) {
+      responseDiv.classList.add('prose', 'prose-invert');
+    }
 
     // Speichere die Analyse in Firestore (wenn User eingeloggt und Projekt aktiv)
     if (currentUser && activeProjectId) {
@@ -1063,17 +1073,16 @@ function showAnalysisSavedFeedback(button) {
   if (!button) return;
   
   const originalText = button.innerHTML;
+  const originalClasses = button.className;
   button.innerHTML = '<span>Gespeichert ✓</span>';
   button.disabled = true;
-  button.classList.add('bg-green-600', 'hover:bg-green-600');
-  button.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+  button.className = 'w-full bg-green-600 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2';
   
   // Nach 2 Sekunden zurücksetzen
   setTimeout(() => {
     button.innerHTML = originalText;
     button.disabled = false;
-    button.classList.remove('bg-green-600', 'hover:bg-green-600');
-    button.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    button.className = originalClasses;
   }, 2000);
 }
 
@@ -1220,4 +1229,99 @@ function setupAnalyzeButtons() {
   if (pivotButton) {
     pivotButton.addEventListener('click', pivotIdea);
   }
+}
+
+// Wizard Functions
+function setupWizard() {
+  // Event Listener für alle Navigation Buttons
+  document.querySelectorAll('.wizard-nav-next').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (currentStep < totalSteps) {
+        showStep(currentStep + 1);
+      }
+    });
+  });
+
+  document.querySelectorAll('.wizard-nav-back').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (currentStep > 1) {
+        showStep(currentStep - 1);
+      }
+    });
+  });
+}
+
+function showStep(stepNumber) {
+  if (stepNumber < 1 || stepNumber > totalSteps) {
+    return;
+  }
+
+  currentStep = stepNumber;
+
+  // Verstecke alle Steps
+  document.querySelectorAll('.wizard-step').forEach((step) => {
+    step.classList.add('hidden');
+  });
+
+  // Zeige aktuellen Step
+  const currentStepElement = document.querySelector(`.wizard-step[data-step="${stepNumber}"]`);
+  if (currentStepElement) {
+    currentStepElement.classList.remove('hidden');
+    currentStepElement.classList.add('fade-in-up');
+  }
+
+  // Update Progress Bar
+  updateProgressBar(stepNumber);
+
+  // Update Navigation Buttons
+  updateNavigationButtons(stepNumber);
+
+  // Scroll nach oben
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateProgressBar(stepNumber) {
+  document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+    const stepNum = index + 1;
+    indicator.classList.remove('active', 'completed');
+
+    if (stepNum === stepNumber) {
+      indicator.classList.add('active');
+    } else if (stepNum < stepNumber) {
+      indicator.classList.add('completed');
+    }
+  });
+
+  // Update Connectors
+  document.querySelectorAll('.step-connector').forEach((connector, index) => {
+    const stepNum = index + 1;
+    connector.classList.remove('completed');
+    if (stepNum < stepNumber) {
+      connector.classList.add('completed');
+    }
+  });
+}
+
+function updateNavigationButtons(stepNumber) {
+  // Update "Zurück" Buttons
+  document.querySelectorAll('.wizard-nav-back').forEach((button) => {
+    if (stepNumber === 1) {
+      button.classList.add('hidden');
+    } else {
+      button.classList.remove('hidden');
+    }
+  });
+
+  // Update "Weiter" Button Text für letzten Schritt
+  document.querySelectorAll('.wizard-nav-next').forEach((button) => {
+    if (stepNumber === totalSteps) {
+      button.textContent = 'Abschließen ✓';
+      button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+      button.classList.add('bg-green-600', 'hover:bg-green-700');
+    } else {
+      button.textContent = 'Weiter →';
+      button.classList.remove('bg-green-600', 'hover:bg-green-700');
+      button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    }
+  });
 }

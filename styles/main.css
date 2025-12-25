@@ -15,6 +15,205 @@
   --color-brand-900: #312e81;
 }
 
+/* Glassmorphism Panel */
+.glass-panel {
+  background: rgba(31, 41, 55, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+}
+
+/* Typography */
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+.label, label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #60a5fa; /* text-blue-400 */
+}
+
+/* Input Fields - Transparent mit Glow */
+input[type="text"],
+input[type="email"],
+textarea {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+  color: #f3f4f6;
+  transition: all 0.3s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+textarea:focus {
+  outline: none;
+  border-bottom-color: #60a5fa;
+  box-shadow: 0 1px 0 0 rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.05);
+}
+
+/* Prose Invert für KI-Antworten */
+.prose-invert {
+  color: #e5e7eb;
+}
+
+.prose-invert h3 {
+  color: #60a5fa; /* Electric Blue */
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.prose-invert h4 {
+  color: #9ca3af; /* Gray */
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.prose-invert strong {
+  color: #93c5fd; /* Light Blue */
+  font-weight: 600;
+}
+
+.prose-invert blockquote {
+  border-left: 4px solid #ef4444; /* Red line for VC judgments */
+  padding-left: 1rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  color: #d1d5db;
+}
+
+.prose-invert ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+
+.prose-invert ul li {
+  margin: 0.5rem 0;
+}
+
+.prose-invert code {
+  background: rgba(0, 0, 0, 0.4);
+  color: #fbbf24;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875em;
+}
+
+.prose-invert pre {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fbbf24;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Wizard Progress Bar */
+#wizard-progress {
+  padding: 1.5rem 0;
+}
+
+.step-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.step-number {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  background: rgba(55, 65, 81, 0.5);
+  color: #9ca3af;
+  border: 2px solid rgba(156, 163, 175, 0.3);
+  transition: all 0.3s ease;
+}
+
+.step-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.3s ease;
+}
+
+.step-indicator.active .step-number {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+}
+
+.step-indicator.active .step-label {
+  color: #60a5fa;
+}
+
+.step-indicator.completed .step-number {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.step-indicator.completed .step-label {
+  color: #34d399;
+}
+
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: rgba(55, 65, 81, 0.5);
+  margin: 0 0.5rem;
+  margin-top: -1.25rem;
+  transition: all 0.3s ease;
+}
+
+.step-connector.completed {
+  background: #10b981;
+}
+
+/* Wizard Step Animation */
+.wizard-step {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.wizard-step.hidden {
+  display: none;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
 /* Styling für KI-Antworten (Markdown-Support) */
 [id^="response-"],
 .ai-response {
