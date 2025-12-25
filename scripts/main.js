@@ -20,6 +20,117 @@ import {
 const GEMINI_API_KEY = 'AIzaSyCE27me4vv7Yo6u3FGOVncG7Z5_WFytHN0';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
 
+// ============================================
+// ZENTRALE API-KOMMUNIKATION (ROBUST)
+// ============================================
+
+/**
+ * Zentrale Funktion für alle Gemini API-Aufrufe
+ * Enthält Retry-Logik für 429 und robuste Fehlerbehandlung
+ */
+async function callGeminiAPI(userPrompt, retryCount = 0) {
+  try {
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: userPrompt
+          }]
+        }],
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
+      })
+    });
+
+    // Behandle verschiedene HTTP-Status-Codes
+    if (response.status === 429) {
+      // Too Many Requests - Retry-Logik
+      if (retryCount < 1) {
+        console.warn('⚠️ API Rate Limit erreicht. Versuche es in 2 Sekunden erneut...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return callGeminiAPI(userPrompt, retryCount + 1);
+      } else {
+        throw new Error('Die KI ist momentan überlastet. Bitte warte kurz und versuche es erneut.');
+      }
+    }
+
+    if (response.status === 403) {
+      const errorText = await response.text();
+      console.error('403 Fehler Details:', errorText);
+      throw new Error('API Key wurde abgelehnt. Bitte überprüfe die Domain-Einstellungen in der Google Cloud Console.');
+    }
+
+    if (response.status === 400) {
+      const errorText = await response.text();
+      console.error('400 Bad Request Details:', errorText);
+      throw new Error('Ungültige Anfrage an die KI. Details in der Konsole.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Extrahiere die Antwort
+    let aiResponse = '';
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      aiResponse = data.candidates[0].content.parts[0].text || '';
+    }
+
+    if (!aiResponse) {
+      throw new Error('Keine Antwort von der API erhalten');
+    }
+
+    return aiResponse;
+
+  } catch (error) {
+    // Falls der Fehler bereits von uns geworfen wurde, leite ihn weiter
+    if (error.message.includes('überlastet') || error.message.includes('abgelehnt') || error.message.includes('Ungültige')) {
+      throw error;
+    }
+    // Netzwerkfehler oder andere Probleme
+    console.error('Netzwerkfehler beim API-Aufruf:', error);
+    throw new Error(`Verbindung zur KI fehlgeschlagen: ${error.message}`);
+  }
+}
+
+/**
+ * Bereinigt Markdown-Code-Blöcke und parst JSON robust
+ */
+function cleanAndParseJSON(text) {
+  let cleanText = text.trim();
+
+  // Entferne Markdown-Code-Blöcke
+  cleanText = cleanText.replace(/^```json\s*/i, '');
+  cleanText = cleanText.replace(/^```\s*/i, '');
+  cleanText = cleanText.replace(/\s*```$/i, '');
+  cleanText = cleanText.trim();
+
+  try {
+    return JSON.parse(cleanText);
+  } catch (parseError) {
+    // Fallback: Versuche JSON im Text zu finden
+    const jsonMatch = cleanText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    throw new Error('Konnte JSON nicht parsen: ' + parseError.message);
+  }
+}
+
+// ============================================
+// ENDE ZENTRALE API-KOMMUNIKATION
+// ============================================
+
 const fieldIds = [
   'problem', 'solution', 'pitch',
   'persona_name', 'persona_demographics', 'persona_pains', 'persona_gains', 'persona_full',
@@ -1015,42 +1126,8 @@ async function analyzeSection(sectionName) {
     const content = fieldValues.join('\n\n');
     const fullPrompt = `${config.prompt}\n\n${content}`;
 
-    // API-Aufruf
-    const response = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: fullPrompt
-          }]
-        }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Extrahiere die Antwort
-    let aiResponse = '';
-    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-      aiResponse = data.candidates[0].content.parts[0].text || '';
-    }
-
-    if (!aiResponse) {
-      throw new Error('Keine Antwort von der API erhalten');
-    }
+    // API-Aufruf über zentrale Funktion
+    const aiResponse = await callGeminiAPI(fullPrompt);
 
     // Konvertiere Markdown zu HTML und zeige an
     const htmlResponse = markdownToHtml(aiResponse);
@@ -1159,65 +1236,11 @@ async function pivotIdea() {
     // Erstelle den Pivot-Prompt
     const pivotPrompt = `Hier ist meine Idee: ${lastHypothesisAnalysis.inputText}\n\nHier ist deine vernichtende Kritik dazu: ${lastHypothesisAnalysis.outputText}\n\nSchreibe das Problem und die Lösung komplett neu, um alle Schwachpunkte zu beheben. Antworte NUR als reines JSON ohne Markdown-Formatierung: { "problem": "...", "solution": "..." }`;
 
-    // API-Aufruf
-    const response = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: pivotPrompt
-          }]
-        }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      })
-    });
+    // API-Aufruf über zentrale Funktion
+    const aiResponse = await callGeminiAPI(pivotPrompt);
 
-    if (!response.ok) {
-      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Extrahiere die Antwort
-    let aiResponse = '';
-    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-      aiResponse = data.candidates[0].content.parts[0].text || '';
-    }
-
-    if (!aiResponse) {
-      throw new Error('Keine Antwort von der API erhalten');
-    }
-
-    // Parse JSON robust (entferne evtl. ```json Wrapper)
-    let jsonText = aiResponse.trim();
-    
-    // Entferne Markdown-Code-Blöcke
-    jsonText = jsonText.replace(/^```json\s*/i, '');
-    jsonText = jsonText.replace(/^```\s*/i, '');
-    jsonText = jsonText.replace(/\s*```$/i, '');
-    jsonText = jsonText.trim();
-
-    // Versuche JSON zu parsen
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (parseError) {
-      // Fallback: Versuche JSON im Text zu finden
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Konnte JSON nicht parsen: ' + parseError.message);
-      }
-    }
+    // Parse JSON robust mit zentraler Funktion
+    const parsed = cleanAndParseJSON(aiResponse);
 
     if (!parsed.problem || !parsed.solution) {
       throw new Error('JSON enthält nicht die erwarteten Felder "problem" und "solution"');
@@ -1279,65 +1302,11 @@ async function analyzeCompetitors() {
     // Erstelle den Prompt
     const prompt = `Analysiere diese Geschäftsidee:\n\nProblem: ${problem}\n\nLösung: ${solution}\n\nIdentifiziere 3 reale oder archetypische Konkurrenten (Status Quo oder echte Firmen). Für jeden:\n1. Name\n2. Ihre größte Schwäche\n3. Unser unfairer Vorteil (Killer-Feature) dagegen\n\nAntworte NUR als valides JSON Array:\n[{ "name": "...", "weakness": "...", "advantage": "..." }]`;
 
-    // API-Aufruf
-    const response = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      })
-    });
+    // API-Aufruf über zentrale Funktion
+    const aiResponse = await callGeminiAPI(prompt);
 
-    if (!response.ok) {
-      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Extrahiere die Antwort
-    let aiResponse = '';
-    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-      aiResponse = data.candidates[0].content.parts[0].text || '';
-    }
-
-    if (!aiResponse) {
-      throw new Error('Keine Antwort von der API erhalten');
-    }
-
-    // Parse JSON robust (entferne evtl. ```json Wrapper)
-    let jsonText = aiResponse.trim();
-    
-    // Entferne Markdown-Code-Blöcke
-    jsonText = jsonText.replace(/^```json\s*/i, '');
-    jsonText = jsonText.replace(/^```\s*/i, '');
-    jsonText = jsonText.replace(/\s*```$/i, '');
-    jsonText = jsonText.trim();
-
-    // Versuche JSON zu parsen
-    let competitors;
-    try {
-      competitors = JSON.parse(jsonText);
-    } catch (parseError) {
-      // Fallback: Versuche JSON-Array im Text zu finden
-      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        competitors = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Konnte JSON nicht parsen: ' + parseError.message);
-      }
-    }
+    // Parse JSON robust mit zentraler Funktion
+    const competitors = cleanAndParseJSON(aiResponse);
 
     if (!Array.isArray(competitors) || competitors.length === 0) {
       throw new Error('Die API hat kein gültiges Array zurückgegeben');
