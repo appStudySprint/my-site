@@ -2,10 +2,10 @@
 # https://docs.netlify.com/configure-builds/file-based-configuration/
 
 [build]
-  # Build Command (falls du ein Build-System nutzt)
-  command = "echo 'No build needed - static site'"
-  # Publish Directory (wo die fertigen Dateien liegen)
-  publish = "."
+  # Build Command: Vite muss das Projekt bauen
+  command = "npm ci && npm run build"
+  # Publish Directory: Vite generiert das dist-Verzeichnis
+  publish = "dist"
   
 [functions]
   # Directory für Serverless Functions
