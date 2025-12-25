@@ -1,0 +1,35 @@
+# Netlify Configuration File
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # Build Command (falls du ein Build-System nutzt)
+  command = "echo 'No build needed - static site'"
+  # Publish Directory (wo die fertigen Dateien liegen)
+  publish = "."
+  
+[functions]
+  # Directory für Serverless Functions
+  directory = "netlify/functions"
+  # Node Version für Functions
+  node_bundler = "esbuild"
+
+# Environment Variables Hinweis:
+# Setze GEMINI_API_KEY in Netlify Dashboard:
+# Site Settings → Environment Variables → Add variable
+# Key: GEMINI_API_KEY
+# Value: AIzaSyCE27me4vv7Yo6u3FGOVncG7Z5_WFytHN0
+
+# Headers für Security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Redirect Rules (optional)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+

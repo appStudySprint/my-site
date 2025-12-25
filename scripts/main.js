@@ -16,10 +16,6 @@ import {
   where,
 } from 'firebase/firestore';
 
-// Gemini API Konstante
-const GEMINI_API_KEY = 'AIzaSyCE27me4vv7Yo6u3FGOVncG7Z5_WFytHN0';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
-
 // ============================================
 // ZENTRALE API-KOMMUNIKATION (ROBUST)
 // ============================================
@@ -27,10 +23,11 @@ const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/
 /**
  * Zentrale Funktion für alle Gemini API-Aufrufe
  * Enthält Retry-Logik für 429 und robuste Fehlerbehandlung
+ * Sendet Requests an Netlify Serverless Function (API-Key ist dort sicher)
  */
 async function callGeminiAPI(userPrompt, retryCount = 0) {
   try {
-    const response = await fetch(GEMINI_API_URL, {
+    const response = await fetch('/.netlify/functions/gemini-proxy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
