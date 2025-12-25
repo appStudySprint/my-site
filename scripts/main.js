@@ -1238,6 +1238,158 @@ async function pivotIdea() {
   }
 }
 
+async function analyzeCompetitors() {
+  const button = document.getElementById('btn-competitors');
+  const spinner = document.getElementById('spinner-competitors');
+  const competitorSection = document.getElementById('competitor-section');
+  const competitorGrid = document.getElementById('competitor-grid');
+  const problemField = document.getElementById('problem');
+  const solutionField = document.getElementById('solution');
+
+  if (!button || !spinner || !competitorSection || !competitorGrid || !problemField || !solutionField) {
+    console.error('Konkurrenz-Analyse-UI-Elemente nicht gefunden');
+    return;
+  }
+
+  const problem = problemField.value.trim();
+  const solution = solutionField.value.trim();
+
+  if (!problem && !solution) {
+    alert('Bitte fülle zuerst das Problem und die Lösung in Step 1 aus.');
+    return;
+  }
+
+  // UI: Loading-State
+  button.disabled = true;
+  spinner.classList.remove('hidden');
+
+  try {
+    // Erstelle den Prompt
+    const prompt = `Analysiere diese Geschäftsidee:\n\nProblem: ${problem}\n\nLösung: ${solution}\n\nIdentifiziere 3 reale oder archetypische Konkurrenten (Status Quo oder echte Firmen). Für jeden:\n1. Name\n2. Ihre größte Schwäche\n3. Unser unfairer Vorteil (Killer-Feature) dagegen\n\nAntworte NUR als valides JSON Array:\n[{ "name": "...", "weakness": "...", "advantage": "..." }]`;
+
+    // API-Aufruf
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Extrahiere die Antwort
+    let aiResponse = '';
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      aiResponse = data.candidates[0].content.parts[0].text || '';
+    }
+
+    if (!aiResponse) {
+      throw new Error('Keine Antwort von der API erhalten');
+    }
+
+    // Parse JSON robust (entferne evtl. ```json Wrapper)
+    let jsonText = aiResponse.trim();
+    
+    // Entferne Markdown-Code-Blöcke
+    jsonText = jsonText.replace(/^```json\s*/i, '');
+    jsonText = jsonText.replace(/^```\s*/i, '');
+    jsonText = jsonText.replace(/\s*```$/i, '');
+    jsonText = jsonText.trim();
+
+    // Versuche JSON zu parsen
+    let competitors;
+    try {
+      competitors = JSON.parse(jsonText);
+    } catch (parseError) {
+      // Fallback: Versuche JSON-Array im Text zu finden
+      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        competitors = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Konnte JSON nicht parsen: ' + parseError.message);
+      }
+    }
+
+    if (!Array.isArray(competitors) || competitors.length === 0) {
+      throw new Error('Die API hat kein gültiges Array zurückgegeben');
+    }
+
+    // Rendere die Battle Cards
+    competitorGrid.innerHTML = '';
+    competitors.forEach((competitor) => {
+      const card = document.createElement('div');
+      card.className = 'glass-panel p-6 rounded-xl border-l-4 border-red-500 hover:translate-y-[-2px] transition-transform';
+      
+      card.innerHTML = `
+        <h4 class="text-xl font-bold text-white mb-3">${escapeHtml(competitor.name || 'Unbekannt')}</h4>
+        <div class="space-y-2">
+          <div>
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Schwachstelle</p>
+            <p class="text-sm text-red-300">${escapeHtml(competitor.weakness || 'Keine Angabe')}</p>
+          </div>
+          <div class="pt-2 border-t border-white/10">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Unser Vorteil</p>
+            <p class="text-sm text-emerald-400 font-bold">${escapeHtml(competitor.advantage || 'Keine Angabe')}</p>
+          </div>
+        </div>
+      `;
+      
+      competitorGrid.appendChild(card);
+    });
+
+    // Zeige die Section
+    competitorSection.classList.remove('hidden');
+
+    // Speichere in Firestore (für Historie)
+    if (currentUser && activeProjectId) {
+      try {
+        await addDoc(collection(db, 'projects', activeProjectId, 'analyses'), {
+          section: 'competitors',
+          inputText: `Problem: ${problem}\nLösung: ${solution}`,
+          outputText: JSON.stringify(competitors, null, 2),
+          createdAt: serverTimestamp(),
+        });
+        console.log('Konkurrenz-Analyse in Firestore gespeichert');
+      } catch (saveError) {
+        console.error('Fehler beim Speichern der Konkurrenz-Analyse:', saveError);
+      }
+    }
+
+    showSavedFeedback('Konkurrenz-Analyse abgeschlossen!');
+
+  } catch (error) {
+    console.error('Fehler bei der Konkurrenz-Analyse:', error);
+    alert(`Fehler bei der Konkurrenz-Analyse: ${error.message}`);
+  } finally {
+    // UI: Loading-State zurücksetzen
+    button.disabled = false;
+    spinner.classList.add('hidden');
+  }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, (m) => map[m]);
+}
+
 function setupAnalyzeButtons() {
   // Event-Listener für alle Analyse-Buttons
   const buttonMappings = [
@@ -1258,6 +1410,12 @@ function setupAnalyzeButtons() {
   const pivotButton = document.getElementById('btn-pivot');
   if (pivotButton) {
     pivotButton.addEventListener('click', pivotIdea);
+  }
+
+  // Event-Listener für Konkurrenz-Button
+  const competitorsButton = document.getElementById('btn-competitors');
+  if (competitorsButton) {
+    competitorsButton.addEventListener('click', analyzeCompetitors);
   }
 }
 
