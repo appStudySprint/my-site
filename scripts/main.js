@@ -22,8 +22,8 @@ const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/
 
 const fieldIds = [
   'problem', 'solution', 'pitch',
-  'persona_name', 'persona_demographics', 'persona_pains', 'persona_gains',
-  'mvp_core1', 'mvp_core2', 'mvp_core3', 'mvp_anti_features',
+  'persona_name', 'persona_demographics', 'persona_pains', 'persona_gains', 'persona_full',
+  'mvp_core1', 'mvp_core2', 'mvp_core3', 'mvp_anti_features', 'mvp_features',
   'validation_method', 'validation_success',
   'resources_stack', 'resources_budget', 'resources_time',
 ];
@@ -60,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
   captureInviteFromUrl();
   setupAnalyzeButtons();
   setupWizard();
+  setupHistoryPanel();
+  setupFinanceCalculator();
   showStep(1); // Starte mit Schritt 1
 });
 
@@ -1443,6 +1445,66 @@ async function loadHistory() {
   } catch (error) {
     console.error('Fehler beim Laden der Historie:', error);
     historyContent.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Historie.</p>';
+  }
+}
+
+// Finance Calculator Functions
+function setupFinanceCalculator() {
+  const priceInput = document.getElementById('calc_price');
+  const varCostsInput = document.getElementById('calc_var_costs');
+  const fixedCostsInput = document.getElementById('calc_fixed_costs');
+
+  if (priceInput && varCostsInput && fixedCostsInput) {
+    [priceInput, varCostsInput, fixedCostsInput].forEach(input => {
+      input.addEventListener('input', calculateBreakEven);
+    });
+    
+    // Initial calculation
+    calculateBreakEven();
+  }
+}
+
+function calculateBreakEven() {
+  const priceInput = document.getElementById('calc_price');
+  const varCostsInput = document.getElementById('calc_var_costs');
+  const fixedCostsInput = document.getElementById('calc_fixed_costs');
+  const resultEl = document.getElementById('calc_result');
+
+  if (!priceInput || !varCostsInput || !fixedCostsInput || !resultEl) {
+    return;
+  }
+
+  const price = parseFloat(priceInput.value) || 0;
+  const varCosts = parseFloat(varCostsInput.value) || 0;
+  const fixedCosts = parseFloat(fixedCostsInput.value) || 0;
+
+  // Berechne Deckungsbeitragsmarge
+  const contributionMargin = price - varCosts;
+
+  // Break-Even Formel: Fixkosten / (Preis - Variable Kosten)
+  let breakEven;
+  if (contributionMargin > 0) {
+    breakEven = fixedCosts / contributionMargin;
+  } else if (contributionMargin === 0 && fixedCosts === 0) {
+    breakEven = 0;
+  } else {
+    breakEven = Infinity; // Negativer Deckungsbeitrag = nie Break-Even
+  }
+
+  // Formatierung und Anzeige
+  if (isNaN(breakEven) || breakEven === Infinity || breakEven < 0) {
+    resultEl.textContent = '-';
+    resultEl.className = 'text-3xl font-bold text-red-400';
+  } else {
+    const roundedBreakEven = Math.ceil(breakEven);
+    resultEl.textContent = `${roundedBreakEven.toLocaleString('de-DE')} Einheiten`;
+    
+    // Visuelles Feedback: Grün wenn Deckungsbeitrag positiv, sonst rot
+    if (contributionMargin > 0) {
+      resultEl.className = 'text-3xl font-bold text-emerald-400';
+    } else {
+      resultEl.className = 'text-3xl font-bold text-red-400';
+    }
   }
 }
 

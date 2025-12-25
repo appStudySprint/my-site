@@ -12,8 +12,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    
     <style>
         ::-webkit-scrollbar {
             width: 6px;
@@ -124,12 +122,12 @@
                     <div class="space-y-6">
                         <div class="glass-panel p-6">
                             <label for="problem" class="label block mb-3">Das Problem</label>
-                            <textarea id="problem" rows="4" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Welches spezifische, dringende Problem löse ich?"></textarea>
+                            <textarea id="problem" rows="6" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Welches spezifische, dringende Problem löse ich?"></textarea>
                         </div>
                         
                         <div class="glass-panel p-6">
                             <label for="solution" class="label block mb-3">Die Lösung</label>
-                            <textarea id="solution" rows="4" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Wie löst mein Produkt dieses Problem auf eine einzigartige Weise?"></textarea>
+                            <textarea id="solution" rows="6" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Wie löst mein Produkt dieses Problem auf eine einzigartige Weise?"></textarea>
                         </div>
                         
                         <div class="glass-panel p-6">
@@ -200,6 +198,11 @@
                         </div>
                         
                         <div class="glass-panel p-6">
+                            <label for="persona_full" class="label block mb-3">Persona Deep-Dive</label>
+                            <textarea id="persona_full" rows="10" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Beschreibe Maria, 28, Studentin, die jeden Tag zwischen Vorlesungen, Nebenjob und Lernen jongliert. Sie hat keine Zeit für komplizierte Tools und braucht schnelle, einfache Lösungen..."></textarea>
+                        </div>
+                        
+                        <div class="glass-panel p-6">
                             <label for="persona_pains" class="label block mb-3">Schmerzpunkte (Pains)</label>
                             <textarea id="persona_pains" rows="4" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Was frustriert sie/ihn im Moment?"></textarea>
                         </div>
@@ -250,6 +253,11 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     <!-- Links: Input -->
                     <div class="space-y-6">
+                        <div class="glass-panel p-6">
+                            <label for="mvp_features" class="label block mb-3">MVP Features</label>
+                            <textarea id="mvp_features" rows="8" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="Liste alle Kernfunktionen deines MVP auf. Was ist das absolute Minimum, das du bauen musst, um die Hypothese zu testen?"></textarea>
+                        </div>
+                        
                         <div class="glass-panel p-6">
                             <label for="mvp_core1" class="label block mb-3">Kernfunktion 1</label>
                             <textarea id="mvp_core1" rows="2" class="w-full bg-transparent text-gray-200 placeholder-gray-500 resize-none focus:ring-0" placeholder="z.B. Benutzer kann sich registrieren"></textarea>
@@ -359,6 +367,38 @@
                     <span>Ressourcen-Check</span>
                 </h2>
                 
+                <!-- Finance Calculator -->
+                <div class="mb-12">
+                    <h3 class="text-xl font-semibold text-white mb-6">Break-Even Rechner</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="glass-panel p-6">
+                            <label for="calc_price" class="label block mb-3">Verkaufspreis pro Einheit (€)</label>
+                            <input type="number" id="calc_price" step="0.01" min="0" class="w-full bg-transparent text-gray-200 placeholder-gray-500 border-b border-blue-500/20 focus:border-blue-500 focus:ring-0 px-2 py-2 text-lg" placeholder="0.00" value="0">
+                        </div>
+                        
+                        <div class="glass-panel p-6">
+                            <label for="calc_var_costs" class="label block mb-3">Variable Kosten pro Einheit (€)</label>
+                            <input type="number" id="calc_var_costs" step="0.01" min="0" class="w-full bg-transparent text-gray-200 placeholder-gray-500 border-b border-blue-500/20 focus:border-blue-500 focus:ring-0 px-2 py-2 text-lg" placeholder="0.00" value="0">
+                        </div>
+                        
+                        <div class="glass-panel p-6">
+                            <label for="calc_fixed_costs" class="label block mb-3">Fixkosten pro Monat (€)</label>
+                            <input type="number" id="calc_fixed_costs" step="0.01" min="0" class="w-full bg-transparent text-gray-200 placeholder-gray-500 border-b border-blue-500/20 focus:border-blue-500 focus:ring-0 px-2 py-2 text-lg" placeholder="0.00" value="0">
+                        </div>
+                    </div>
+                    
+                    <div class="glass-panel p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="label mb-2">Break-Even Menge</p>
+                                <p class="text-sm text-gray-400">Anzahl der Einheiten, die du verkaufen musst, um die Fixkosten zu decken</p>
+                            </div>
+                            <div id="calc_result" class="text-3xl font-bold text-gray-400">0 Einheiten</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Legacy Fields (Optional) -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="glass-panel p-6">
                         <label for="resources_stack" class="label block mb-3">Technologie-Stack</label>
@@ -429,17 +469,6 @@
                     </div>
                 </section>
                 
-                <!-- Export Button -->
-                <div class="mt-8 flex justify-center">
-                    <button id="export-pdf-button" onclick="exportToPDF()" class="bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition-all shadow-lg">
-                        <span id="export-pdf-text">📄 Als Investment Memo exportieren (PDF)</span>
-                        <svg id="export-pdf-spinner" class="hidden animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                    </button>
-                </div>
-                
                 <!-- Navigation -->
                 <div class="flex justify-between items-center mt-12">
                     <button class="wizard-nav-back bg-transparent border border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 font-semibold py-3 px-6 rounded-lg transition-all duration-200">
@@ -480,66 +509,6 @@
             </div>
             <div id="history-content" class="space-y-4">
                 <p class="text-gray-400 text-center">Lade Historie...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- PDF Template (Hidden) -->
-    <div id="pdf-template" class="hidden">
-        <div class="pdf-container" style="width: 210mm; min-height: 297mm; background: white; padding: 20mm; font-family: 'Inter', sans-serif; color: #000;">
-            <!-- Header -->
-            <div style="border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 15mm;">
-                <h1 id="pdf-project-name" style="font-size: 32px; font-weight: 700; margin: 0 0 5mm 0;">Projektname</h1>
-                <div style="display: flex; justify-content: space-between; margin-top: 5mm;">
-                    <p id="pdf-date" style="margin: 0; color: #666; font-size: 12px;">Datum</p>
-                    <p style="margin: 0; font-weight: 600; font-size: 14px;">INVESTMENT MEMO</p>
-                </div>
-            </div>
-
-            <!-- Executive Summary -->
-            <section style="margin-bottom: 15mm;">
-                <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8mm; border-bottom: 1px solid #ccc; padding-bottom: 3mm;">Executive Summary</h2>
-                <div style="margin-bottom: 8mm;">
-                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 3mm; color: #333;">Das Problem</h3>
-                    <p id="pdf-problem" style="margin: 0; line-height: 1.6; color: #000;">-</p>
-                </div>
-                <div>
-                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 3mm; color: #333;">Die Lösung</h3>
-                    <p id="pdf-solution" style="margin: 0; line-height: 1.6; color: #000;">-</p>
-                </div>
-            </section>
-
-            <!-- Target Audience -->
-            <section style="margin-bottom: 15mm;">
-                <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8mm; border-bottom: 1px solid #ccc; padding-bottom: 3mm;">Target Audience</h2>
-                <div id="pdf-persona" style="line-height: 1.6; color: #000;">
-                    <p style="margin: 0;">-</p>
-                </div>
-            </section>
-
-            <!-- Strategy -->
-            <section style="margin-bottom: 15mm;">
-                <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8mm; border-bottom: 1px solid #ccc; padding-bottom: 3mm;">Validierungsstrategie</h2>
-                <div id="pdf-validation" style="line-height: 1.6; color: #000;">
-                    <p style="margin: 0;">-</p>
-                </div>
-            </section>
-
-            <!-- Risk Analysis -->
-            <section style="margin-bottom: 15mm;">
-                <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8mm; border-bottom: 1px solid #ccc; padding-bottom: 3mm;">Risk Analysis & Kritik</h2>
-                <div id="pdf-critique" style="line-height: 1.6; color: #000; margin-bottom: 8mm;">
-                    <p style="margin: 0;">-</p>
-                </div>
-                <div id="pdf-pivot" style="line-height: 1.6; color: #000; padding: 5mm; background: #f5f5f5; border-left: 3px solid #000;">
-                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 3mm;">Optimierte Version (nach Pivot)</h3>
-                    <p id="pdf-pivot-content" style="margin: 0;">-</p>
-                </div>
-            </section>
-
-            <!-- Footer -->
-            <div style="position: absolute; bottom: 20mm; left: 20mm; right: 20mm; border-top: 1px solid #ccc; padding-top: 5mm; text-align: center;">
-                <p style="margin: 0; color: #666; font-size: 10px;">Erstellt mit Gründer-Cockpit</p>
             </div>
         </div>
     </div>
