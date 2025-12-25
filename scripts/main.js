@@ -69,6 +69,20 @@ function storageKey() {
 }
 
 function setupAuthUi() {
+  // Landing Page Start Button
+  const landingBtn = document.getElementById('landingStartButton');
+  if (landingBtn) {
+    landingBtn.addEventListener('click', () => {
+      console.log("Start-Button geklickt - starte Login...");
+      signInWithPopup(auth, googleProvider).catch((error) => {
+        console.error("Login Fehler:", error);
+        alert("Login fehlgeschlagen: " + error.message);
+      });
+    });
+  } else {
+    console.error("ACHTUNG: Landing-Page Button nicht gefunden!");
+  }
+
   const signInButton = document.getElementById('signInButton');
   const signOutButton = document.getElementById('signOutButton');
   const userBadge = document.getElementById('userBadge');
@@ -1340,20 +1354,6 @@ function updateNavigationButtons(stepNumber) {
   });
 }
 
-// Landing Page Functions
-function setupLandingPage() {
-  const landingStartButton = document.getElementById('landing-start-button');
-  if (landingStartButton) {
-    landingStartButton.addEventListener('click', async () => {
-      try {
-        await signInWithPopup(auth, googleProvider);
-      } catch (error) {
-        console.error('Fehler bei der Anmeldung:', error);
-        alert('Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
-      }
-    });
-  }
-}
 
 // History Panel Functions
 function setupHistoryPanel() {
@@ -1445,3 +1445,157 @@ async function loadHistory() {
     historyContent.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Historie.</p>';
   }
 }
+
+// PDF Export Function
+window.exportToPDF = async function() {
+  const exportButton = document.getElementById('export-pdf-button');
+  const exportText = document.getElementById('export-pdf-text');
+  const exportSpinner = document.getElementById('export-pdf-spinner');
+  
+  if (!exportButton || !exportText) {
+    console.error('Export-Button nicht gefunden');
+    return;
+  }
+
+  // UI: Loading State
+  exportButton.disabled = true;
+  exportText.textContent = 'Generiere PDF...';
+  exportSpinner.classList.remove('hidden');
+
+  try {
+    // Schritt A: Daten füllen
+    const template = document.getElementById('pdf-template');
+    if (!template) {
+      throw new Error('PDF-Template nicht gefunden');
+    }
+
+    // Projektname
+    const projectNameEl = document.getElementById('pdf-project-name');
+    if (projectNameEl) {
+      const activeProjectNameEl = document.getElementById('activeProjectName');
+      projectNameEl.textContent = activeProjectNameEl ? activeProjectNameEl.textContent : 'Persönliches Projekt';
+    }
+
+    // Datum
+    const dateEl = document.getElementById('pdf-date');
+    if (dateEl) {
+      dateEl.textContent = new Date().toLocaleDateString('de-DE', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+
+    // Problem & Lösung
+    const problemEl = document.getElementById('pdf-problem');
+    const solutionEl = document.getElementById('pdf-solution');
+    if (problemEl) {
+      const problemInput = document.getElementById('problem');
+      problemEl.textContent = problemInput ? problemInput.value || '-' : '-';
+    }
+    if (solutionEl) {
+      const solutionInput = document.getElementById('solution');
+      solutionEl.textContent = solutionInput ? solutionInput.value || '-' : '-';
+    }
+
+    // Persona
+    const personaEl = document.getElementById('pdf-persona');
+    if (personaEl) {
+      const personaName = document.getElementById('persona_name')?.value || '';
+      const personaDemo = document.getElementById('persona_demographics')?.value || '';
+      const personaPains = document.getElementById('persona_pains')?.value || '';
+      const personaGains = document.getElementById('persona_gains')?.value || '';
+      
+      let personaHtml = '';
+      if (personaName) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Name:</strong> ${personaName}</p>`;
+      if (personaDemo) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Demografie:</strong> ${personaDemo}</p>`;
+      if (personaPains) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Schmerzpunkte:</strong> ${personaPains}</p>`;
+      if (personaGains) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Gewünschte Ergebnisse:</strong> ${personaGains}</p>`;
+      
+      personaEl.innerHTML = personaHtml || '<p style="margin: 0;">-</p>';
+    }
+
+    // Validierung
+    const validationEl = document.getElementById('pdf-validation');
+    if (validationEl) {
+      const validationMethod = document.getElementById('validation_method')?.value || '';
+      const validationSuccess = document.getElementById('validation_success')?.value || '';
+      
+      let validationHtml = '';
+      if (validationMethod) validationHtml += `<p style="margin: 0 0 3mm 0;"><strong>Testmethode:</strong> ${validationMethod}</p>`;
+      if (validationSuccess) validationHtml += `<p style="margin: 0 0 3mm 0;"><strong>Erfolgsmetrik:</strong> ${validationSuccess}</p>`;
+      
+      validationEl.innerHTML = validationHtml || '<p style="margin: 0;">-</p>';
+    }
+
+    // Kritik (letzte Hypothese-Analyse)
+    const critiqueEl = document.getElementById('pdf-critique');
+    if (critiqueEl && lastHypothesisAnalysis) {
+      // Konvertiere Markdown zu einfachem Text für PDF
+      const critiqueText = lastHypothesisAnalysis.outputText || '-';
+      critiqueEl.innerHTML = `<p style="margin: 0; white-space: pre-wrap;">${critiqueText.replace(/\*\*/g, '').replace(/##/g, '').replace(/###/g, '')}</p>`;
+    } else if (critiqueEl) {
+      const responseHypothese = document.getElementById('response-hypothese');
+      if (responseHypothese && !responseHypothese.classList.contains('hidden')) {
+        const critiqueText = responseHypothese.innerText || '-';
+        critiqueEl.innerHTML = `<p style="margin: 0; white-space: pre-wrap;">${critiqueText}</p>`;
+      } else {
+        critiqueEl.innerHTML = '<p style="margin: 0;">-</p>';
+      }
+    }
+
+    // Pivot (falls vorhanden)
+    const pivotEl = document.getElementById('pdf-pivot-content');
+    if (pivotEl) {
+      const problemInput = document.getElementById('problem');
+      const solutionInput = document.getElementById('solution');
+      if (problemInput && solutionInput && (problemInput.value || solutionInput.value)) {
+        pivotEl.innerHTML = `
+          <p style="margin: 0 0 3mm 0;"><strong>Problem:</strong> ${problemInput.value || '-'}</p>
+          <p style="margin: 0;"><strong>Lösung:</strong> ${solutionInput.value || '-'}</p>
+        `;
+      } else {
+        pivotEl.innerHTML = '<p style="margin: 0;">-</p>';
+      }
+    }
+
+    // Schritt B: PDF generieren
+    // Klone das Template und mache es sichtbar (off-screen)
+    const clonedTemplate = template.cloneNode(true);
+    clonedTemplate.id = 'pdf-template-clone';
+    clonedTemplate.classList.remove('hidden');
+    clonedTemplate.style.position = 'absolute';
+    clonedTemplate.style.left = '-9999px';
+    clonedTemplate.style.top = '0';
+    document.body.appendChild(clonedTemplate);
+
+    // Warte kurz, damit das Layout gerendert wird
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // PDF generieren
+    const projectName = document.getElementById('activeProjectName')?.textContent || 'Projekt';
+    const filename = `Investment-Memo-${projectName.replace(/\s+/g, '-')}.pdf`;
+
+    await html2pdf().set({
+      margin: 15,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(clonedTemplate).save();
+
+    // Cleanup: Entferne geklontes Template
+    document.body.removeChild(clonedTemplate);
+
+    showSavedFeedback('PDF erfolgreich erstellt!');
+
+  } catch (error) {
+    console.error('Fehler beim PDF-Export:', error);
+    alert('Fehler beim Erstellen des PDFs: ' + error.message);
+  } finally {
+    // UI: Loading State zurücksetzen
+    exportButton.disabled = false;
+    exportText.textContent = '📄 Als Investment Memo exportieren (PDF)';
+    exportSpinner.classList.add('hidden');
+  }
+};

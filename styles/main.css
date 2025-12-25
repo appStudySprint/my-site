@@ -229,6 +229,27 @@ textarea:focus {
   transform: translateX(-2px);
 }
 
+/* PDF Template Styling */
+#pdf-template {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+
+#pdf-template .pdf-container {
+  page-break-after: always;
+}
+
+#pdf-template h1,
+#pdf-template h2,
+#pdf-template h3 {
+  color: #000;
+}
+
+#pdf-template p {
+  color: #000;
+}
+
 /* Styling für KI-Antworten (Markdown-Support) */
 [id^="response-"],
 .ai-response {
