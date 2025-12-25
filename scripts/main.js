@@ -12,6 +12,10 @@ import {
   where,
 } from 'firebase/firestore';
 
+// Gemini API Konstante
+const GEMINI_API_KEY = 'AIzaSyCE27me4vv7Yo6u3FGOVncG7Z5_WFytHN0';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
+
 const fieldIds = [
   'problem', 'solution', 'pitch',
   'persona_name', 'persona_demographics', 'persona_pains', 'persona_gains',
@@ -46,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupClearButton();
   setupInviteForm();
   captureInviteFromUrl();
+  setupAnalyzeButtons();
 });
 
 function storageKey() {
@@ -110,16 +115,26 @@ function setupAuthUi() {
 }
 
 async function initializeForUser(user) {
+  // SCHRITT 1: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
+  // Wir warten nicht auf die Datenbank. Wenn der User da ist, zeig die Sektion!
+  console.log("Benutzer erkannt. Aktiviere Team-Sektion...");
+  toggleTeamSection(true); 
+
   try {
+    // SCHRITT 2: Datenbank-Operationen
     await ensureOwnerProject(user);
     await resolveActiveProject(user);
     watchIncomingInvites(user);
-    toggleTeamSection(true);
+    
   } catch (error) {
+    // SCHRITT 3: Fehler sichtbar machen
     console.error('Fehler bei der Initialisierung:', error);
+    
+    // WICHTIG: Wir zeigen den Fehler jetzt direkt auf dem Bildschirm an via Alert.
+    // So wissen wir SOFORT, ob es an den Regeln oder der Verbindung liegt.
+    alert("Ein Fehler ist aufgetreten:\n\n" + error.message + "\n\n(Bitte prüfen Sie die Firestore-Regeln oder den Account-Status)");
   }
 }
-
 async function ensureOwnerProject(user) {
   const projectId = `${user.uid}-personal`;
   const ref = doc(db, 'projects', projectId);
@@ -778,6 +793,218 @@ function showSavedFeedback(message) {
     el.style.transition = 'opacity 300ms';
     setTimeout(() => {
       if (document.body.contains(el)) document.body.removeChild(el);
-    }, 320);
+    }, 300);
   }, 1200);
+}
+
+// Markdown zu HTML Konverter (einfach)
+function markdownToHtml(markdown) {
+  if (!markdown) return '';
+  
+  // Zuerst Code-Blöcke schützen (werden später wieder eingefügt)
+  const codeBlocks = [];
+  let html = markdown.replace(/```[\s\S]*?```/g, (match) => {
+    const id = `CODE_BLOCK_${codeBlocks.length}`;
+    codeBlocks.push(match);
+    return id;
+  });
+  
+  // Inline-Code schützen
+  const inlineCodes = [];
+  html = html.replace(/`([^`]+)`/g, (match, content) => {
+    const id = `INLINE_CODE_${inlineCodes.length}`;
+    inlineCodes.push(`<code class="ai-response-code">${content}</code>`);
+    return id;
+  });
+  
+  // Zeilenweise verarbeiten
+  const lines = html.split('\n');
+  const result = [];
+  let inList = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Listen erkennen
+    const listMatch = line.match(/^[\-\*]\s+(.+)$/) || line.match(/^\d+\.\s+(.+)$/);
+    
+    if (listMatch) {
+      if (!inList) {
+        result.push('<ul class="ai-response-list">');
+        inList = true;
+      }
+      result.push(`<li>${listMatch[1]}</li>`);
+    } else {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      
+      if (line) {
+        // Fett: **text** oder __text__ (zuerst, damit sie nicht als Kursiv erkannt werden)
+        let processedLine = line
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/__(.+?)__/g, '<strong>$1</strong>')
+          // Kursiv: *text* oder _text_ (nur wenn nicht am Anfang/Ende und nicht Teil von **)
+          .replace(/([^*])\*([^*]+?)\*([^*])/g, '$1<em>$2</em>$3')
+          .replace(/([^_])_([^_]+?)_([^_])/g, '$1<em>$2</em>$3');
+        
+        result.push(`<p>${processedLine}</p>`);
+      } else if (i < lines.length - 1) {
+        // Leere Zeile zwischen Paragraphen
+        result.push('');
+      }
+    }
+  }
+  
+  if (inList) {
+    result.push('</ul>');
+  }
+  
+  html = result.join('\n');
+  
+  // Code-Blöcke wieder einfügen
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`CODE_BLOCK_${index}`, `<pre class="ai-response-code-block">${block.replace(/```/g, '')}</pre>`);
+  });
+  
+  // Inline-Code wieder einfügen
+  inlineCodes.forEach((code, index) => {
+    html = html.replace(`INLINE_CODE_${index}`, code);
+  });
+  
+  return html;
+}
+
+async function analyzeSection(sectionName) {
+  const sectionConfig = {
+    'hypothese': {
+      buttonId: 'analyze-hypothese',
+      spinnerId: 'spinner-hypothese',
+      responseId: 'response-hypothese',
+      prompt: 'Du bist ein skeptischer VC. Kritisiere dieses Problem und die Lösung hart.',
+      fields: ['problem', 'solution', 'pitch']
+    },
+    'persona': {
+      buttonId: 'analyze-persona',
+      spinnerId: 'spinner-persona',
+      responseId: 'response-persona',
+      prompt: 'Du bist ein Produktmanager. Finde Lücken in dieser Persona.',
+      fields: ['persona_name', 'persona_demographics', 'persona_pains', 'persona_gains']
+    },
+    'mvp': {
+      buttonId: 'analyze-mvp',
+      spinnerId: 'spinner-mvp',
+      responseId: 'response-mvp',
+      prompt: 'Du bist ein Lean-Startup-Coach. Welches Feature ist unnötig?',
+      fields: ['mvp_core1', 'mvp_core2', 'mvp_core3', 'mvp_anti_features']
+    },
+    'validierung': {
+      buttonId: 'analyze-validierung',
+      spinnerId: 'spinner-validierung',
+      responseId: 'response-validierung',
+      prompt: 'Du bist ein Marktanalyst. Welche Konkurrenten gibt es?',
+      fields: ['validation_method', 'validation_success']
+    }
+  };
+
+  const config = sectionConfig[sectionName];
+  if (!config) {
+    console.error('Unbekannte Sektion:', sectionName);
+    return;
+  }
+
+  const button = document.getElementById(config.buttonId);
+  const spinner = document.getElementById(config.spinnerId);
+  const responseDiv = document.getElementById(config.responseId);
+
+  if (!button || !spinner || !responseDiv) {
+    console.error('Elemente nicht gefunden für Sektion:', sectionName);
+    return;
+  }
+
+  // Sammle Feldwerte
+  const fieldValues = config.fields.map(fieldId => {
+    const element = document.getElementById(fieldId);
+    return element ? element.value.trim() : '';
+  }).filter(val => val.length > 0);
+
+  if (fieldValues.length === 0) {
+    responseDiv.innerHTML = '<p class="text-yellow-400">Bitte füllen Sie zuerst die Felder aus.</p>';
+    responseDiv.classList.remove('hidden');
+    return;
+  }
+
+  // UI: Loading-State
+  button.disabled = true;
+  spinner.classList.remove('hidden');
+  responseDiv.classList.add('hidden');
+
+  try {
+    // Erstelle den vollständigen Prompt
+    const content = fieldValues.join('\n\n');
+    const fullPrompt = `${config.prompt}\n\n${content}`;
+
+    // API-Aufruf
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: fullPrompt
+          }]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Extrahiere die Antwort
+    let aiResponse = '';
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      aiResponse = data.candidates[0].content.parts[0].text || '';
+    }
+
+    if (!aiResponse) {
+      throw new Error('Keine Antwort von der API erhalten');
+    }
+
+    // Konvertiere Markdown zu HTML und zeige an
+    const htmlResponse = markdownToHtml(aiResponse);
+    responseDiv.innerHTML = htmlResponse;
+    responseDiv.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Fehler bei der Analyse:', error);
+    responseDiv.innerHTML = `<p class="text-red-400">Fehler: ${error.message}</p>`;
+    responseDiv.classList.remove('hidden');
+  } finally {
+    // UI: Loading-State zurücksetzen
+    button.disabled = false;
+    spinner.classList.add('hidden');
+  }
+}
+
+function setupAnalyzeButtons() {
+  // Event-Listener für alle Analyse-Buttons
+  const buttonMappings = [
+    { buttonId: 'analyze-hypothese', sectionName: 'hypothese' },
+    { buttonId: 'analyze-persona', sectionName: 'persona' },
+    { buttonId: 'analyze-mvp', sectionName: 'mvp' },
+    { buttonId: 'analyze-validierung', sectionName: 'validierung' }
+  ];
+
+  buttonMappings.forEach(({ buttonId, sectionName }) => {
+    const button = document.getElementById(buttonId);
+    if (button) {
+      button.addEventListener('click', () => analyzeSection(sectionName));
+    }
+  });
 }
