@@ -1,6 +1,7 @@
 ﻿import { auth, db, googleProvider } from './firebase.js';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -1010,6 +1011,23 @@ async function analyzeSection(sectionName) {
     responseDiv.innerHTML = htmlResponse;
     responseDiv.classList.remove('hidden');
 
+    // Speichere die Analyse in Firestore (wenn User eingeloggt und Projekt aktiv)
+    if (currentUser && activeProjectId) {
+      try {
+        await saveAnalysis(sectionName, content, aiResponse);
+        showAnalysisSavedFeedback(button);
+        showSavedFeedback('Analyse gespeichert');
+      } catch (saveError) {
+        console.error('Fehler beim Speichern der Analyse:', saveError);
+        // Nicht kritisch - zeige Fehler nur in Console, nicht im UI
+      }
+    }
+
+    // Zeige Pivot-Button für Hypothese-Sektion
+    if (sectionName === 'hypothese') {
+      showPivotButton(content, aiResponse);
+    }
+
   } catch (error) {
     console.error('Fehler bei der Analyse:', error);
     responseDiv.innerHTML = `<p class="text-red-400">Fehler: ${error.message}</p>`;
@@ -1018,6 +1036,166 @@ async function analyzeSection(sectionName) {
     // UI: Loading-State zurücksetzen
     button.disabled = false;
     spinner.classList.add('hidden');
+  }
+}
+
+async function saveAnalysis(sectionName, inputText, outputText) {
+  if (!currentUser || !activeProjectId) {
+    return; // Nicht speichern, wenn kein User oder Projekt aktiv
+  }
+
+  try {
+    await addDoc(collection(db, 'projects', activeProjectId, 'analyses'), {
+      section: sectionName,
+      inputText: inputText,
+      outputText: outputText,
+      createdAt: serverTimestamp(),
+      createdBy: currentUser.uid,
+      createdByEmail: currentUser.email ?? '',
+    });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Analyse:', error);
+    throw error;
+  }
+}
+
+function showAnalysisSavedFeedback(button) {
+  if (!button) return;
+  
+  const originalText = button.innerHTML;
+  button.innerHTML = '<span>Gespeichert ✓</span>';
+  button.disabled = true;
+  button.classList.add('bg-green-600', 'hover:bg-green-600');
+  button.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+  
+  // Nach 2 Sekunden zurücksetzen
+  setTimeout(() => {
+    button.innerHTML = originalText;
+    button.disabled = false;
+    button.classList.remove('bg-green-600', 'hover:bg-green-600');
+    button.classList.add('bg-blue-600', 'hover:bg-blue-700');
+  }, 2000);
+}
+
+// Speichere die letzte Hypothese-Analyse für Pivot
+let lastHypothesisAnalysis = null;
+
+function showPivotButton(inputText, outputText) {
+  lastHypothesisAnalysis = { inputText, outputText };
+  const pivotButton = document.getElementById('pivot-button');
+  if (pivotButton) {
+    pivotButton.classList.remove('hidden');
+  }
+}
+
+async function pivotIdea() {
+  if (!lastHypothesisAnalysis) {
+    console.error('Keine Hypothese-Analyse verfügbar');
+    return;
+  }
+
+  const pivotButton = document.getElementById('pivot-button');
+  const pivotButtonText = document.getElementById('pivot-button-text');
+  const pivotSpinner = document.getElementById('pivot-spinner');
+  const problemField = document.getElementById('problem');
+  const solutionField = document.getElementById('solution');
+
+  if (!pivotButton || !pivotButtonText || !pivotSpinner || !problemField || !solutionField) {
+    console.error('Pivot-UI-Elemente nicht gefunden');
+    return;
+  }
+
+  // UI: Loading-State
+  pivotButton.disabled = true;
+  pivotSpinner.classList.remove('hidden');
+  pivotButtonText.textContent = 'Optimiere Idee...';
+
+  try {
+    // Erstelle den Pivot-Prompt
+    const pivotPrompt = `Hier ist meine Idee: ${lastHypothesisAnalysis.inputText}\n\nHier ist deine vernichtende Kritik dazu: ${lastHypothesisAnalysis.outputText}\n\nSchreibe das Problem und die Lösung komplett neu, um alle Schwachpunkte zu beheben. Antworte NUR als reines JSON ohne Markdown-Formatierung: { "problem": "...", "solution": "..." }`;
+
+    // API-Aufruf
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: pivotPrompt
+          }]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Extrahiere die Antwort
+    let aiResponse = '';
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      aiResponse = data.candidates[0].content.parts[0].text || '';
+    }
+
+    if (!aiResponse) {
+      throw new Error('Keine Antwort von der API erhalten');
+    }
+
+    // Parse JSON robust (entferne evtl. ```json Wrapper)
+    let jsonText = aiResponse.trim();
+    
+    // Entferne Markdown-Code-Blöcke
+    jsonText = jsonText.replace(/^```json\s*/i, '');
+    jsonText = jsonText.replace(/^```\s*/i, '');
+    jsonText = jsonText.replace(/\s*```$/i, '');
+    jsonText = jsonText.trim();
+
+    // Versuche JSON zu parsen
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError) {
+      // Fallback: Versuche JSON im Text zu finden
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Konnte JSON nicht parsen: ' + parseError.message);
+      }
+    }
+
+    if (!parsed.problem || !parsed.solution) {
+      throw new Error('JSON enthält nicht die erwarteten Felder "problem" und "solution"');
+    }
+
+    // Setze die neuen Werte in die Felder
+    problemField.value = parsed.problem;
+    solutionField.value = parsed.solution;
+
+    // Löse manuell ein 'input' Event aus, damit die Werte automatisch gespeichert werden
+    const inputEvent = new Event('input', { bubbles: true });
+    problemField.dispatchEvent(inputEvent);
+    solutionField.dispatchEvent(inputEvent);
+
+    // Autosize für die Textareas
+    autosize(problemField);
+    autosize(solutionField);
+
+    // Feedback
+    showSavedFeedback('Idea gepivoted! Neue Werte gespeichert.');
+
+  } catch (error) {
+    console.error('Fehler beim Pivot:', error);
+    showSavedFeedback(`Fehler beim Pivot: ${error.message}`);
+  } finally {
+    // UI: Loading-State zurücksetzen
+    pivotButton.disabled = false;
+    pivotSpinner.classList.add('hidden');
+    pivotButtonText.textContent = '🔄 Pivot: Idee basierend auf Kritik optimieren';
   }
 }
 
@@ -1036,4 +1214,10 @@ function setupAnalyzeButtons() {
       button.addEventListener('click', () => analyzeSection(sectionName));
     }
   });
+
+  // Event-Listener für Pivot-Button
+  const pivotButton = document.getElementById('pivot-button');
+  if (pivotButton) {
+    pivotButton.addEventListener('click', pivotIdea);
+  }
 }
