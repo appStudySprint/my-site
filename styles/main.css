@@ -214,6 +214,21 @@ textarea:focus {
   animation: fadeInUp 0.5s ease-out;
 }
 
+/* History Panel */
+#history-panel {
+  backdrop-filter: blur(12px);
+}
+
+#history-panel .glass-panel {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#history-panel .glass-panel:hover {
+  border-color: rgba(96, 165, 250, 0.3);
+  transform: translateX(-2px);
+}
+
 /* Styling für KI-Antworten (Markdown-Support) */
 [id^="response-"],
 .ai-response {

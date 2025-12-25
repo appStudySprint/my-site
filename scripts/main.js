@@ -5,7 +5,10 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -96,18 +99,33 @@ function setupAuthUi() {
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
 
+    const appContainer = document.getElementById('app-container');
+    const landingPage = document.getElementById('landing-page');
+
     if (userBadge) {
       if (user) {
+        // User eingeloggt -> Zeige App, verstecke Landing Page
+        if (appContainer) appContainer.classList.remove('hidden');
+        if (landingPage) landingPage.classList.add('hidden');
+        
         userBadge.classList.remove('hidden');
         userBadge.classList.add('flex');
         if (signInButton) signInButton.classList.add('hidden');
+        const historyButtonAuthed = document.getElementById('history-button-authed');
+        if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
         if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
         if (userEmail) userEmail.textContent = user.email ?? '';
         await initializeForUser(user);
       } else {
+        // User ausgeloggt -> Zeige Landing Page, verstecke App
+        if (appContainer) appContainer.classList.add('hidden');
+        if (landingPage) landingPage.classList.remove('hidden');
+        
         userBadge.classList.add('hidden');
         userBadge.classList.remove('flex');
         if (signInButton) signInButton.classList.remove('hidden');
+        const historyButtonAuthed = document.getElementById('history-button-authed');
+        if (historyButtonAuthed) historyButtonAuthed.classList.add('hidden');
         clearProjectSubscriptions();
         activeProjectId = null;
         activeProjectName = 'Persönliches Projekt';
@@ -1035,7 +1053,11 @@ async function analyzeSection(sectionName) {
 
     // Zeige Pivot-Button für Hypothese-Sektion
     if (sectionName === 'hypothese') {
-      showPivotButton(content, aiResponse);
+      const btnPivot = document.getElementById('btn-pivot');
+      if (btnPivot) {
+        btnPivot.classList.remove('hidden');
+      }
+      lastHypothesisAnalysis = { inputText: content, outputText: aiResponse };
     }
 
   } catch (error) {
@@ -1088,14 +1110,6 @@ function showAnalysisSavedFeedback(button) {
 
 // Speichere die letzte Hypothese-Analyse für Pivot
 let lastHypothesisAnalysis = null;
-
-function showPivotButton(inputText, outputText) {
-  lastHypothesisAnalysis = { inputText, outputText };
-  const pivotButton = document.getElementById('pivot-button');
-  if (pivotButton) {
-    pivotButton.classList.remove('hidden');
-  }
-}
 
 async function pivotIdea() {
   if (!lastHypothesisAnalysis) {
@@ -1225,7 +1239,7 @@ function setupAnalyzeButtons() {
   });
 
   // Event-Listener für Pivot-Button
-  const pivotButton = document.getElementById('pivot-button');
+  const pivotButton = document.getElementById('btn-pivot');
   if (pivotButton) {
     pivotButton.addEventListener('click', pivotIdea);
   }
@@ -1324,4 +1338,110 @@ function updateNavigationButtons(stepNumber) {
       button.classList.add('bg-blue-500', 'hover:bg-blue-600');
     }
   });
+}
+
+// Landing Page Functions
+function setupLandingPage() {
+  const landingStartButton = document.getElementById('landing-start-button');
+  if (landingStartButton) {
+    landingStartButton.addEventListener('click', async () => {
+      try {
+        await signInWithPopup(auth, googleProvider);
+      } catch (error) {
+        console.error('Fehler bei der Anmeldung:', error);
+        alert('Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
+      }
+    });
+  }
+}
+
+// History Panel Functions
+function setupHistoryPanel() {
+  const historyButton = document.getElementById('history-button');
+  const historyButtonAuthed = document.getElementById('history-button-authed');
+  const historyClose = document.getElementById('history-close');
+  const historyPanel = document.getElementById('history-panel');
+
+  const toggleHistory = () => {
+    if (historyPanel) {
+      const isHidden = historyPanel.classList.contains('hidden');
+      if (isHidden) {
+        historyPanel.classList.remove('hidden');
+        setTimeout(() => {
+          historyPanel.classList.remove('translate-x-full');
+        }, 10);
+        loadHistory();
+      } else {
+        historyPanel.classList.add('translate-x-full');
+        setTimeout(() => {
+          historyPanel.classList.add('hidden');
+        }, 300);
+      }
+    }
+  };
+
+  if (historyButton) {
+    historyButton.addEventListener('click', toggleHistory);
+  }
+  if (historyButtonAuthed) {
+    historyButtonAuthed.addEventListener('click', toggleHistory);
+  }
+  if (historyClose) {
+    historyClose.addEventListener('click', toggleHistory);
+  }
+}
+
+async function loadHistory() {
+  if (!currentUser || !activeProjectId) {
+    const historyContent = document.getElementById('history-content');
+    if (historyContent) {
+      historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
+    }
+    return;
+  }
+
+  const historyContent = document.getElementById('history-content');
+  if (!historyContent) return;
+
+  historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Historie...</p>';
+
+  try {
+    const analysesRef = collection(db, 'projects', activeProjectId, 'analyses');
+    const q = query(analysesRef, orderBy('createdAt', 'desc'), limit(20));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      historyContent.innerHTML = '<p class="text-gray-400 text-center">Noch keine Analysen vorhanden.</p>';
+      return;
+    }
+
+    const analyses = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    historyContent.innerHTML = analyses.map(analysis => {
+      const date = analysis.createdAt?.toDate ? analysis.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
+      const sectionNames = {
+        'hypothese': 'Hypothese',
+        'persona': 'Persona',
+        'mvp': 'MVP',
+        'validierung': 'Validierung'
+      };
+      const sectionName = sectionNames[analysis.section] || analysis.section;
+      
+      return `
+        <div class="glass-panel p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-blue-400 font-semibold">${sectionName}</span>
+            <span class="text-xs text-gray-500">${date}</span>
+          </div>
+          <p class="text-sm text-gray-300 line-clamp-3">${analysis.outputText?.substring(0, 150) || 'Keine Antwort'}...</p>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Fehler beim Laden der Historie:', error);
+    historyContent.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Historie.</p>';
+  }
 }

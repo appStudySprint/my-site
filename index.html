@@ -25,6 +25,20 @@
 </head>
 <body class="min-h-screen bg-gray-950 text-gray-200">
     
+    <!-- Landing Page -->
+    <div id="landing-page" class="min-h-screen flex items-center justify-center px-6">
+        <div class="max-w-3xl text-center">
+            <h1 class="text-6xl font-bold text-white mb-6">Baue ein Business, keine Features</h1>
+            <p class="text-xl text-gray-400 mb-12">Von der vagen Idee zur validierten Hypothese. Schritt für Schritt zum erfolgreichen Startup.</p>
+            <button id="landing-start-button" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-200">
+                Starten
+            </button>
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="app-container" class="hidden">
+    
     <!-- Sticky Header -->
     <header class="sticky top-0 z-50 glass-panel mb-8 px-6 py-4">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -36,10 +50,16 @@
                 </span>
             </div>
             <div id="authControls" class="flex items-center gap-4">
+                <button id="history-button" class="bg-transparent border border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 font-semibold py-2 px-4 rounded-lg transition-all duration-200 hidden">
+                    📜 Verlauf
+                </button>
                 <button id="signInButton" class="bg-white text-gray-900 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition-all duration-200">
                     Mit Google anmelden
                 </button>
                 <div id="userBadge" class="hidden items-center gap-3">
+                    <button id="history-button-authed" class="bg-transparent border border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 font-semibold py-2 px-4 rounded-lg transition-all duration-200">
+                        📜 Verlauf
+                    </button>
                     <div class="text-right">
                         <p id="userName" class="text-sm font-medium text-white"></p>
                         <p id="userEmail" class="text-xs text-gray-400"></p>
@@ -123,7 +143,14 @@
                             <span>Analysieren</span>
                         </button>
                         
-                        <button id="pivot-button" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 hidden">
+                    </div>
+                    
+                    <!-- Rechts: Output (Sticky) -->
+                    <div class="lg:sticky lg:top-24 h-fit">
+                        <div id="response-hypothese" class="glass-panel p-6 prose prose-invert max-w-none hidden">
+                            <p class="text-gray-400 text-center">Analysiere deine Hypothese, um Insights zu erhalten...</p>
+                        </div>
+                        <button id="btn-pivot" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 hidden">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                             </svg>
@@ -133,13 +160,6 @@
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                         </button>
-                    </div>
-                    
-                    <!-- Rechts: Output (Sticky) -->
-                    <div class="lg:sticky lg:top-24 h-fit">
-                        <div id="response-hypothese" class="glass-panel p-6 prose prose-invert max-w-none hidden">
-                            <p class="text-gray-400 text-center">Analysiere deine Hypothese, um Insights zu erhalten...</p>
-                        </div>
                     </div>
                 </div>
                 
@@ -431,6 +451,25 @@
         </footer>
 
     </main>
+
+    </div> <!-- End app-container -->
+
+    <!-- History Panel (Slide-Over) -->
+    <div id="history-panel" class="fixed top-0 right-0 h-full w-full md:w-96 bg-gray-900 border-l border-gray-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 overflow-y-auto hidden">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white">📜 Analyse-Historie</h2>
+                <button id="history-close" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="history-content" class="space-y-4">
+                <p class="text-gray-400 text-center">Lade Historie...</p>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="/scripts/main.js"></script>
 </body>
