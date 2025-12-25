@@ -16,9 +16,14 @@
 }
 
 /* Styling für KI-Antworten (Markdown-Support) */
-[id^="response-"] {
+[id^="response-"],
+.ai-response {
   color: #e5e7eb; /* text-gray-200 */
   line-height: 1.6;
+  background-color: rgba(31, 41, 55, 0.5); /* bg-gray-800/50 */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* border-white/10 */
+  padding: 1.5rem; /* p-6 */
+  border-radius: 0.5rem; /* rounded-lg */
 }
 
 [id^="response-"] p {
@@ -31,7 +36,10 @@
 
 [id^="response-"] strong {
   font-weight: 600;
-  color: #ffffff;
+}
+
+[id^="response-"] strong.text-brand-400 {
+  color: #818cf8; /* text-brand-400 */
 }
 
 [id^="response-"] em {
@@ -59,18 +67,27 @@
   margin: 1rem 0;
 }
 
-[id^="response-"] ul.ai-response-list {
-  list-style-type: disc;
-  margin-left: 1.5rem;
+[id^="response-"] ul,
+.ai-response ul {
   margin-top: 0.75rem;
   margin-bottom: 1rem;
 }
 
-[id^="response-"] ul.ai-response-list li {
-  margin-bottom: 0.5rem;
-  padding-left: 0.5rem;
+[id^="response-"] ul li,
+.ai-response ul li {
+  /* space-y-1 wird durch Tailwind-Klasse gehandhabt */
 }
 
-[id^="response-"] ul.ai-response-list li:last-child {
-  margin-bottom: 0;
+[id^="response-"] h3 {
+  margin-top: 1rem; /* mt-4 */
+  margin-bottom: 0.5rem; /* mb-2 */
+}
+
+[id^="response-"] h3:first-child {
+  margin-top: 0;
+}
+
+[id^="response-"] h4 {
+  margin-top: 0.75rem; /* mt-3 */
+  margin-bottom: 0.25rem; /* mb-1 */
 }

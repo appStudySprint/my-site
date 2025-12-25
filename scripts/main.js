@@ -797,7 +797,7 @@ function showSavedFeedback(message) {
   }, 1200);
 }
 
-// Markdown zu HTML Konverter (einfach)
+// Markdown zu HTML Konverter (verbessert)
 function markdownToHtml(markdown) {
   if (!markdown) return '';
   
@@ -823,28 +823,57 @@ function markdownToHtml(markdown) {
   let inList = false;
   
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i];
+    const trimmedLine = line.trim();
+    
+    // Überschriften erkennen (muss vor anderen Verarbeitungen kommen)
+    if (trimmedLine.startsWith('### ')) {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      const headingText = trimmedLine.substring(4).trim();
+      // Fett in Überschriften verarbeiten
+      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
+      result.push(`<h4 class="text-lg font-semibold text-gray-200 mt-3 mb-1">${processedHeading}</h4>`);
+      continue;
+    }
+    
+    if (trimmedLine.startsWith('## ')) {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      const headingText = trimmedLine.substring(3).trim();
+      // Fett in Überschriften verarbeiten
+      const processedHeading = headingText.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
+      result.push(`<h3 class="text-xl font-bold text-white mt-4 mb-2">${processedHeading}</h3>`);
+      continue;
+    }
     
     // Listen erkennen
-    const listMatch = line.match(/^[\-\*]\s+(.+)$/) || line.match(/^\d+\.\s+(.+)$/);
+    const listMatch = trimmedLine.match(/^[\-\*]\s+(.+)$/) || trimmedLine.match(/^\d+\.\s+(.+)$/);
     
     if (listMatch) {
       if (!inList) {
-        result.push('<ul class="ai-response-list">');
+        result.push('<ul class="list-disc pl-5 space-y-1">');
         inList = true;
       }
-      result.push(`<li>${listMatch[1]}</li>`);
+      // Fett in Listenpunkten verarbeiten
+      let listItem = listMatch[1];
+      listItem = listItem.replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>');
+      result.push(`<li>${listItem}</li>`);
     } else {
       if (inList) {
         result.push('</ul>');
         inList = false;
       }
       
-      if (line) {
+      if (trimmedLine) {
         // Fett: **text** oder __text__ (zuerst, damit sie nicht als Kursiv erkannt werden)
-        let processedLine = line
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-          .replace(/__(.+?)__/g, '<strong>$1</strong>')
+        let processedLine = trimmedLine
+          .replace(/\*\*(.+?)\*\*/g, '<strong class="text-brand-400">$1</strong>')
+          .replace(/__(.+?)__/g, '<strong class="text-brand-400">$1</strong>')
           // Kursiv: *text* oder _text_ (nur wenn nicht am Anfang/Ende und nicht Teil von **)
           .replace(/([^*])\*([^*]+?)\*([^*])/g, '$1<em>$2</em>$3')
           .replace(/([^_])_([^_]+?)_([^_])/g, '$1<em>$2</em>$3');
