@@ -2657,74 +2657,81 @@ async function exportToPDF() {
 // ============================================
 
 async function finishProject() {
-  console.log('[finishProject] START');
-  console.log('[finishProject] currentUser:', currentUser?.uid);
-  console.log('[finishProject] activeProjectId:', activeProjectId);
-  
-  if (!currentUser) {
-    console.error('[finishProject] KEIN USER');
-    showToast('Bitte melde dich an, um ein Projekt abzuschließen.', 'warning');
-    return;
-  }
-  
-  if (!activeProjectId) {
-    console.error('[finishProject] KEIN activeProjectId');
-    showToast('Kein aktives Projekt gefunden.', 'error');
-    return;
-  }
-
   const btn = document.getElementById('btn-finish-project');
-  if (!btn) {
-    console.error('[finishProject] Finish-Button nicht gefunden');
+  
+  // 1. Sicherheits-Check (User muss da sein)
+  if (!auth.currentUser) {
+    showToast("Nicht eingeloggt!", "error");
     return;
   }
 
-  const originalText = btn.innerHTML;
-  const originalDisabled = btn.disabled;
-  
-  try {
-    console.log('[finishProject] Setze Button auf "Speichere..."');
-    btn.disabled = true;
-    btn.innerHTML = 'Speichere...';
+  // 2. SELF-HEALING: ID rekonstruieren
+  // Wenn activeProjectId fehlt (durch Fehler beim Start), bauen wir sie uns selbst.
+  // Das Format ist immer: UID + "-personal"
+  const targetProjectId = activeProjectId || `${auth.currentUser.uid}-personal`;
+  console.log("[finishProject] Versuche Abschluss für Projekt:", targetProjectId);
+  console.log("[finishProject] activeProjectId war:", activeProjectId);
+  console.log("[finishProject] targetProjectId ist:", targetProjectId);
 
-    // 1. Status in Firestore auf 'completed' setzen
-    const projectRef = doc(db, 'projects', activeProjectId);
-    console.log('[finishProject] Speichere Status "completed" in:', projectRef.path);
+  const originalText = btn.innerText;
+  btn.disabled = true;
+  btn.innerHTML = "💾 Speichere...";
+
+  try {
+    const docRef = doc(db, 'projects', targetProjectId);
     
-    await updateDoc(projectRef, {
+    // 3. Daten sammeln (Snapshot der aktuellen Eingaben)
+    // Wir holen uns die Werte direkt aus dem DOM, um sicherzugehen
+    const currentData = {};
+    fieldIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        currentData[id] = el.value;
+        console.log(`[finishProject] Feld "${id}":`, el.value.substring(0, 50));
+      }
+    });
+
+    console.log("[finishProject] Speichere mit setDoc (merge: true)");
+
+    // 4. "Upsert" (Update oder Erstellen)
+    // Wir nutzen setDoc mit merge:true. Das funktioniert IMMER.
+    // Wenn das Projekt existiert -> Update. Wenn nicht -> Erstellen.
+    await setDoc(docRef, {
+      ownerId: auth.currentUser.uid,
+      name: 'Persönliches Projekt',
       status: 'completed',
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
-    
-    console.log('[finishProject] ERFOLG - Status gespeichert');
+      fields: currentData // Speichere die aktuellen Eingaben sicherheitshalber mit
+    }, { merge: true });
 
-    // 2. Feedback (Feier)
-    if (typeof confetti !== 'undefined') {
-      confetti({ 
-        particleCount: 150, 
-        spread: 70, 
-        origin: { y: 0.6 } 
+    console.log("[finishProject] ERFOLG - Projekt gespeichert & abgeschlossen");
+
+    // 5. Erfolg & Reset
+    if (window.confetti) {
+      window.confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
       });
     }
-    showToast('Projekt erfolgreich abgeschlossen!', 'success');
+    showToast("Projekt erfolgreich gespeichert & abgeschlossen!", "success");
 
-    // 3. Reset für neues Projekt (nach kurzer Verzögerung)
-    console.log('[finishProject] Starte Reload in 2.5 Sekunden...');
     setTimeout(() => {
-      console.log('[finishProject] Führe window.location.reload() aus');
-      window.location.reload(); 
-    }, 2500);
+      // Hartes Neuladen, um die App für das nächste Projekt zu resetten
+      console.log("[finishProject] Starte window.location.reload()");
+      window.location.reload();
+    }, 2000);
 
   } catch (error) {
-    console.error('[finishProject] FEHLER beim Abschließen:', error);
-    console.error('[finishProject] Error Details:', {
+    console.error("[finishProject] FEHLER:", error);
+    console.error("[finishProject] Error Details:", {
       code: error.code,
       message: error.message,
-      activeProjectId
+      targetProjectId
     });
-    showToast('Fehler beim Abschließen: ' + error.message, 'error');
-    btn.disabled = originalDisabled;
-    btn.innerHTML = originalText;
+    showToast("Fehler: " + error.message, "error");
+    btn.disabled = false;
+    btn.innerText = originalText;
   }
 }
