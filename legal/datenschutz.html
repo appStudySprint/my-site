@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datenschutzerklärung - VentureValidator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-300 min-h-screen">
+    <div class="p-8 max-w-2xl mx-auto">
+        <div class="mb-8">
+            <a href="/" class="text-blue-400 hover:text-blue-300 transition-colors text-sm">← Zurück zur App</a>
+        </div>
+        
+        <h1 class="text-3xl font-bold text-white mb-6">Datenschutzerklärung</h1>
+        
+        <div class="prose prose-invert max-w-none space-y-4">
+            <section>
+                <h2 class="text-xl font-semibold text-white mt-6 mb-3">1. Datenschutz auf einen Blick</h2>
+                <h3 class="text-lg font-semibold text-white mt-4 mb-2">Allgemeine Hinweise</h3>
+                <p class="text-gray-300 leading-relaxed">
+                    Die folgenden Hinweise geben einen einfachen Überblick darüber, was mit Ihren personenbezogenen Daten passiert, wenn Sie diese Website besuchen. Personenbezogene Daten sind alle Daten, mit denen Sie persönlich identifiziert werden können.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-white mt-6 mb-3">2. Datenerfassung auf dieser Website</h2>
+                <h3 class="text-lg font-semibold text-white mt-4 mb-2">Firebase Authentication & Firestore</h3>
+                <p class="text-gray-300 leading-relaxed">
+                    Diese App nutzt Firebase (Google Cloud Platform) für die Authentifizierung und Datenspeicherung:
+                </p>
+                <ul class="list-disc pl-6 text-gray-300 leading-relaxed space-y-2 mt-3">
+                    <li><strong>Firebase Authentication:</strong> Wir speichern Ihre E-Mail-Adresse und Anzeigename für die Anmeldung (Google Sign-In).</li>
+                    <li><strong>Firestore:</strong> Ihre eingegebenen Startup-Daten werden in der Google Cloud gespeichert und sind nur für Sie und von Ihnen eingeladene Teammitglieder zugänglich.</li>
+                    <li><strong>Datenübertragung:</strong> Alle Daten werden verschlüsselt übertragen (HTTPS).</li>
+                    <li><strong>Löschung:</strong> Sie können Ihre Daten jederzeit über die App löschen oder durch Löschen Ihres Firebase-Kontos.</li>
+                </ul>
+                <p class="text-gray-300 leading-relaxed mt-4">
+                    <strong>Verantwortlicher:</strong> Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland<br>
+                    <strong>Privacy Policy:</strong> <a href="https://firebase.google.com/support/privacy" target="_blank" class="text-blue-400 hover:text-blue-300">https://firebase.google.com/support/privacy</a>
+                </p>
+            </section>
+
+            <section>
+                <h3 class="text-lg font-semibold text-white mt-4 mb-2">Google Gemini AI</h3>
+                <p class="text-gray-300 leading-relaxed">
+                    Für die KI-Analysen verwenden wir Google Gemini Pro:
+                </p>
+                <ul class="list-disc pl-6 text-gray-300 leading-relaxed space-y-2 mt-3">
+                    <li>Ihre eingegebenen Texte werden zur Analyse an die Google Gemini API gesendet.</li>
+                    <li>Die Daten werden nicht für das Training der KI verwendet (gemäß Google Gemini Nutzungsbedingungen).</li>
+                    <li>API-Aufrufe erfolgen über eine sichere Serverless-Funktion (keine API-Keys im Client).</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-white mt-6 mb-3">3. Ihre Rechte</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    Sie haben jederzeit das Recht:
+                </p>
+                <ul class="list-disc pl-6 text-gray-300 leading-relaxed space-y-2 mt-3">
+                    <li>Auskunft über Ihre gespeicherten Daten zu erhalten,</li>
+                    <li>Berichtigung falscher Daten zu verlangen,</li>
+                    <li>Löschung Ihrer Daten zu verlangen,</li>
+                    <li>Widerspruch gegen die Verarbeitung Ihrer Daten einzulegen.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-white mt-6 mb-3">4. Kontakt</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    Bei Fragen zum Datenschutz kontaktieren Sie uns bitte unter:<br>
+                    [Ihre E-Mail-Adresse]
+                </p>
+            </section>
+
+            <section class="mt-8 pt-6 border-t border-gray-800">
+                <p class="text-sm text-gray-500">
+                    Stand: <span id="date"></span>
+                </p>
+                <script>
+                    document.getElementById('date').textContent = new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
+                </script>
+            </section>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -83,12 +83,7 @@
                 <span class="text-sm text-gray-400">
                     Projekt: <span id="activeProjectName" class="text-blue-400 font-medium">Persönliches Projekt</span>
                 </span>
-                <span id="save-status" class="opacity-0 transition-opacity duration-300 text-xs text-emerald-400 flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    Gespeichert
-                </span>
+                <span id="save-status" class="ml-4 text-xs font-mono font-bold text-emerald-500 opacity-0 transition-opacity duration-500"></span>
             </div>
             <div id="authControls" class="flex items-center gap-4">
                 <button id="history-button" class="bg-transparent border border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 font-semibold py-2 px-4 rounded-lg transition-all duration-200 hidden">
@@ -607,9 +602,14 @@
                 <p class="text-xs text-gray-500">
                     Version 1.2 • Powered by Gemini Pro & Google Search
                 </p>
-                <p class="text-xs text-gray-600 mt-2">
+                <p class="text-xs text-gray-600 mt-2 mb-3">
                     Alle Daten werden sicher in deinem Browser und optional in Firebase gespeichert.
                 </p>
+                <div class="flex items-center justify-center gap-4 text-xs">
+                    <a href="/legal/impressum.html" target="_blank" class="text-gray-500 hover:text-white transition-colors">Impressum</a>
+                    <span class="text-gray-600">•</span>
+                    <a href="/legal/datenschutz.html" target="_blank" class="text-gray-500 hover:text-white transition-colors">Datenschutz</a>
+                </div>
             </div>
         </footer>
 

@@ -103,9 +103,7 @@ async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
         // Parse die Quellen aus dem Grounding Metadata
         sources = metadata.groundingChunks || [];
       }
-      if (metadata.webSearchQueries) {
-        console.log('🔍 Google Search Queries:', metadata.webSearchQueries);
-      }
+      // Metadata available for future use
     }
 
     if (!aiResponse) {
@@ -215,9 +213,8 @@ function setupAuthUi() {
   // Landing Page Start Button
   const landingBtn = document.getElementById('landingStartButton');
   if (landingBtn) {
-    landingBtn.addEventListener('click', () => {
-      console.log("Start-Button geklickt - starte Login...");
-      signInWithPopup(auth, googleProvider).catch((error) => {
+      landingBtn.addEventListener('click', () => {
+        signInWithPopup(auth, googleProvider).catch((error) => {
         console.error("Login Fehler:", error);
         alert("Login fehlgeschlagen: " + error.message);
       });
@@ -299,7 +296,6 @@ function setupAuthUi() {
 async function initializeForUser(user) {
   // SCHRITT 1: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
   // Wir warten nicht auf die Datenbank. Wenn der User da ist, zeig die Sektion!
-  console.log("Benutzer erkannt. Aktiviere Team-Sektion...");
   toggleTeamSection(true); 
 
   try {
@@ -546,14 +542,16 @@ async function persistRemoteUpdates() {
   pendingRemoteUpdates = {};
 
   try {
+    showSaveStatus('saving');
     await updateDoc(projectDocRef, {
       ...updates,
       updatedAt: serverTimestamp(),
       lastEditor: currentUser.uid,
     });
-    showSaved();
+    showSaveStatus('saved');
   } catch (error) {
     console.error('Fehler beim Speichern in Firestore:', error);
+    showSaveStatus(); // Reset status on error
   }
 }
 
@@ -1013,19 +1011,27 @@ function showToast(message, type = 'success') {
 // AUTO-SAVE FEEDBACK
 // ============================================
 
-function showSaveStatus() {
+function showSaveStatus(state = 'saved') {
   const saveStatus = document.getElementById('save-status');
   if (!saveStatus) return;
   
-  saveStatus.style.opacity = '1';
-  
-  setTimeout(() => {
+  if (state === 'saving') {
+    saveStatus.textContent = 'Speichere...';
+    saveStatus.className = 'ml-4 text-xs font-mono font-bold text-yellow-500 opacity-100 transition-opacity duration-500';
+  } else if (state === 'saved') {
+    saveStatus.textContent = '✓ Gespeichert';
+    saveStatus.className = 'ml-4 text-xs font-mono font-bold text-emerald-500 opacity-100 transition-opacity duration-500';
+    
+    setTimeout(() => {
+      saveStatus.style.opacity = '0';
+    }, 2000);
+  } else {
     saveStatus.style.opacity = '0';
-  }, 2000);
+  }
 }
 
 // Legacy showSaved for backward compatibility
-const showSaved = showSaveStatus;
+const showSaved = () => showSaveStatus('saved');
 
 function showSavedFeedback(message) {
   const el = document.createElement('div');
@@ -1448,8 +1454,6 @@ Antworte NUR als valides JSON Array:
     const result = await callGeminiAPI(prompt, 0, true);
     const aiResponse = result.text || result;
 
-    console.log('🔍 Konkurrenz-Analyse mit Google Search:', result.sources ? `${result.sources.length} Quellen gefunden` : 'Keine Quellen');
-
     // Parse JSON robust mit zentraler Funktion
     const competitors = cleanAndParseJSON(aiResponse);
 
@@ -1505,7 +1509,6 @@ Antworte NUR als valides JSON Array:
           outputText: JSON.stringify(competitors, null, 2),
           createdAt: serverTimestamp(),
         });
-        console.log('Konkurrenz-Analyse in Firestore gespeichert');
       } catch (saveError) {
         console.error('Fehler beim Speichern der Konkurrenz-Analyse:', saveError);
       }
