@@ -50,7 +50,7 @@ async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
       requestBody.tools = [{ googleSearch: {} }];
     }
 
-    const response = await fetch('/.netlify/functions/gemini-proxy', {
+    const response = await fetch('/api/gemini-proxy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

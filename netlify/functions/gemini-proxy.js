@@ -7,7 +7,7 @@
  * Setup in Netlify Dashboard:
  * Site Settings → Environment Variables → Add variable
  * Key: GEMINI_API_KEY
- * Value: AIzaSyCE27me4vv7Yo6u3FGOVncG7Z5_WFytHN0
+ * Value: (Dein API-Key)
  */
 
 export default async (req, context) => {
@@ -34,7 +34,8 @@ export default async (req, context) => {
 
   try {
     // 1. Hole den API-Key sicher aus Environment Variables
-    const apiKey = Netlify.env.get('GEMINI_API_KEY');
+    // Unterstütze sowohl process.env (Standard) als auch Netlify.env.get() (Netlify-spezifisch)
+    const apiKey = process.env.GEMINI_API_KEY || Netlify?.env?.get('GEMINI_API_KEY');
 
     if (!apiKey) {
       console.error('❌ GEMINI_API_KEY ist nicht in den Netlify Environment Variables konfiguriert!');
@@ -64,22 +65,46 @@ export default async (req, context) => {
     // Verwende gemini-1.5-flash (stabil, höhere Rate-Limits: 1.500 Requests/Tag im Free Tier)
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-    const googleResponse = await fetch(googleApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    let googleResponse;
+    try {
+      googleResponse = await fetch(googleApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (fetchError) {
+      console.error('❌ Network error beim Abruf der Google API:', fetchError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Network error',
+          message: 'Could not reach Google API'
+        }),
+        { status: 500, headers }
+      );
+    }
 
     // 4. Lese die Antwort von Google
     const responseText = await googleResponse.text();
     
-    // Wenn Google einen Fehler zurückgibt, leite ihn weiter
+    // Wenn Google einen Fehler zurückgibt (inkl. 404), leite ihn als JSON weiter
     if (!googleResponse.ok) {
       console.error(`❌ Google API Error (${googleResponse.status}):`, responseText);
+      
+      // Versuche, die Antwort als JSON zu parsen, falls möglich
+      let errorBody;
+      try {
+        errorBody = JSON.parse(responseText);
+      } catch {
+        errorBody = { error: responseText };
+      }
+      
       return new Response(
-        responseText,
+        JSON.stringify({
+          error: `Google API Error (${googleResponse.status})`,
+          details: errorBody
+        }),
         { 
           status: googleResponse.status, 
           headers 
@@ -106,4 +131,3 @@ export default async (req, context) => {
     );
   }
 };
-
