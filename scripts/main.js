@@ -24,27 +24,38 @@ import {
  * Zentrale Funktion für alle Gemini API-Aufrufe
  * Enthält Retry-Logik für 429 und robuste Fehlerbehandlung
  * Sendet Requests an Netlify Serverless Function (API-Key ist dort sicher)
+ * @param {string} userPrompt - Der Prompt-Text
+ * @param {number} retryCount - Retry-Zähler für Rate-Limiting
+ * @param {boolean} useSearch - Wenn true, aktiviert Google Search Tool für echte Marktdaten
+ * @returns {object} - { text: string, sources?: array } - Antwort mit optionalen Quellen
  */
-async function callGeminiAPI(userPrompt, retryCount = 0) {
+async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
   try {
+    const requestBody = {
+      contents: [{
+        parts: [{
+          text: userPrompt
+        }]
+      }],
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
+    };
+
+    // Aktiviere Google Search Tool für echte Marktdaten
+    if (useSearch) {
+      requestBody.tools = [{ googleSearch: {} }];
+    }
+
     const response = await fetch('/.netlify/functions/gemini-proxy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: userPrompt
-          }]
-        }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      })
+      body: JSON.stringify(requestBody)
     });
 
     // Behandle verschiedene HTTP-Status-Codes
@@ -77,17 +88,31 @@ async function callGeminiAPI(userPrompt, retryCount = 0) {
 
     const data = await response.json();
 
-    // Extrahiere die Antwort
+    // Extrahiere die Antwort und optionale Quellen
     let aiResponse = '';
+    let sources = [];
+    
     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
       aiResponse = data.candidates[0].content.parts[0].text || '';
+    }
+
+    // Extrahiere Grounding Metadata (Quellen von Google Search)
+    if (data.candidates && data.candidates[0] && data.candidates[0].groundingMetadata) {
+      const metadata = data.candidates[0].groundingMetadata;
+      if (metadata.searchEntryPoint && metadata.searchEntryPoint.renderedContent) {
+        // Parse die Quellen aus dem Grounding Metadata
+        sources = metadata.groundingChunks || [];
+      }
+      if (metadata.webSearchQueries) {
+        console.log('🔍 Google Search Queries:', metadata.webSearchQueries);
+      }
     }
 
     if (!aiResponse) {
       throw new Error('Keine Antwort von der API erhalten');
     }
 
-    return aiResponse;
+    return { text: aiResponse, sources };
 
   } catch (error) {
     // Falls der Fehler bereits von uns geworfen wurde, leite ihn weiter
@@ -1146,7 +1171,8 @@ async function analyzeSection(sectionName) {
     const fullPrompt = `${config.prompt}\n\n${content}`;
 
     // API-Aufruf über zentrale Funktion
-    const aiResponse = await callGeminiAPI(fullPrompt);
+    const result = await callGeminiAPI(fullPrompt, 0, false);
+    const aiResponse = result.text || result; // Backward compatibility
 
     // Konvertiere Markdown zu HTML und zeige an
     const htmlResponse = markdownToHtml(aiResponse);
@@ -1256,7 +1282,8 @@ async function pivotIdea() {
     const pivotPrompt = `Hier ist meine Idee: ${lastHypothesisAnalysis.inputText}\n\nHier ist deine vernichtende Kritik dazu: ${lastHypothesisAnalysis.outputText}\n\nSchreibe das Problem und die Lösung komplett neu, um alle Schwachpunkte zu beheben. Antworte NUR als reines JSON ohne Markdown-Formatierung: { "problem": "...", "solution": "..." }`;
 
     // API-Aufruf über zentrale Funktion
-    const aiResponse = await callGeminiAPI(pivotPrompt);
+    const result = await callGeminiAPI(pivotPrompt, 0, false);
+    const aiResponse = result.text || result;
 
     // Parse JSON robust mit zentraler Funktion
     const parsed = cleanAndParseJSON(aiResponse);
@@ -1318,11 +1345,27 @@ async function analyzeCompetitors() {
   spinner.classList.remove('hidden');
 
   try {
-    // Erstelle den Prompt
-    const prompt = `Analysiere diese Geschäftsidee:\n\nProblem: ${problem}\n\nLösung: ${solution}\n\nIdentifiziere 3 reale oder archetypische Konkurrenten (Status Quo oder echte Firmen). Für jeden:\n1. Name\n2. Ihre größte Schwäche\n3. Unser unfairer Vorteil (Killer-Feature) dagegen\n\nAntworte NUR als valides JSON Array:\n[{ "name": "...", "weakness": "...", "advantage": "..." }]`;
+    // Erstelle den Prompt mit Google Search für ECHTE Marktdaten
+    const prompt = `Recherchiere LIVE im Internet nach Konkurrenten für diese Geschäftsidee:
 
-    // API-Aufruf über zentrale Funktion
-    const aiResponse = await callGeminiAPI(prompt);
+Problem: ${problem}
+
+Lösung: ${solution}
+
+Finde 3 EXISTIERENDE Firmen oder Produkte, die in diesem Markt aktiv sind. Für jede Firma:
+1. Name (echter Firmenname)
+2. Website URL (wenn verfügbar)
+3. Ihre größte Schwäche (basierend auf echten Reviews/Daten)
+4. Unser unfairer Vorteil dagegen
+
+Antworte NUR als valides JSON Array:
+[{ "name": "...", "url": "...", "weakness": "...", "advantage": "..." }]`;
+
+    // API-Aufruf mit Google Search aktiviert für echte Marktdaten
+    const result = await callGeminiAPI(prompt, 0, true);
+    const aiResponse = result.text || result;
+
+    console.log('🔍 Konkurrenz-Analyse mit Google Search:', result.sources ? `${result.sources.length} Quellen gefunden` : 'Keine Quellen');
 
     // Parse JSON robust mit zentraler Funktion
     const competitors = cleanAndParseJSON(aiResponse);
@@ -1331,14 +1374,27 @@ async function analyzeCompetitors() {
       throw new Error('Die API hat kein gültiges Array zurückgegeben');
     }
 
-    // Rendere die Battle Cards
+    // Rendere die Battle Cards mit URLs und Quellen-Badge
     competitorGrid.innerHTML = '';
     competitors.forEach((competitor) => {
       const card = document.createElement('div');
       card.className = 'glass-panel p-6 rounded-xl border-l-4 border-red-500 hover:translate-y-[-2px] transition-transform';
       
+      const urlSection = competitor.url ? `
+        <a href="${escapeHtml(competitor.url)}" target="_blank" rel="noopener" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mb-3">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+          ${escapeHtml(competitor.url)}
+        </a>
+      ` : '';
+      
       card.innerHTML = `
-        <h4 class="text-xl font-bold text-white mb-3">${escapeHtml(competitor.name || 'Unbekannt')}</h4>
+        <div class="flex items-start justify-between mb-2">
+          <h4 class="text-xl font-bold text-white">${escapeHtml(competitor.name || 'Unbekannt')}</h4>
+          <span class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">LIVE</span>
+        </div>
+        ${urlSection}
         <div class="space-y-2">
           <div>
             <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Schwachstelle</p>
@@ -1396,6 +1452,206 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (m) => map[m]);
 }
 
+// ============================================
+// VC FINAL SCORE CALCULATION
+// ============================================
+
+async function calculateFinalScore() {
+  const button = document.getElementById('btn-final-score');
+  const spinner = document.getElementById('spinner-final-score');
+  const scoreCircle = document.getElementById('score-circle');
+  const scoreValue = document.getElementById('score-value');
+  const scoreVerdict = document.getElementById('score-verdict');
+  const scoreBreakdown = document.getElementById('score-breakdown');
+
+  if (!button || !spinner || !scoreCircle || !scoreValue) {
+    console.error('Score UI-Elemente nicht gefunden');
+    return;
+  }
+
+  // Sammle ALLE Daten aus dem Wizard
+  const allData = {
+    problem: document.getElementById('problem')?.value || '',
+    solution: document.getElementById('solution')?.value || '',
+    pitch: document.getElementById('pitch')?.value || '',
+    persona_name: document.getElementById('persona_name')?.value || '',
+    persona_demographics: document.getElementById('persona_demographics')?.value || '',
+    persona_pains: document.getElementById('persona_pains')?.value || '',
+    persona_gains: document.getElementById('persona_gains')?.value || '',
+    mvp_features: document.getElementById('mvp_features')?.value || '',
+    mvp_core1: document.getElementById('mvp_core1')?.value || '',
+    mvp_core2: document.getElementById('mvp_core2')?.value || '',
+    mvp_core3: document.getElementById('mvp_core3')?.value || '',
+    mvp_anti_features: document.getElementById('mvp_anti_features')?.value || '',
+    validation_method: document.getElementById('validation_method')?.value || '',
+    validation_success: document.getElementById('validation_success')?.value || '',
+    resources_stack: document.getElementById('resources_stack')?.value || '',
+    resources_budget: document.getElementById('resources_budget')?.value || '',
+    resources_time: document.getElementById('resources_time')?.value || '',
+    calc_price: document.getElementById('calc_price')?.value || '0',
+    calc_var_costs: document.getElementById('calc_var_costs')?.value || '0',
+    calc_fixed_costs: document.getElementById('calc_fixed_costs')?.value || '0',
+  };
+
+  // Prüfe, ob genug Daten vorhanden sind
+  const hasMinimalData = allData.problem && allData.solution;
+  if (!hasMinimalData) {
+    alert('Bitte fülle mindestens Problem und Lösung aus, bevor du das Scoring berechnest.');
+    return;
+  }
+
+  // UI: Loading State
+  button.disabled = true;
+  spinner.classList.remove('hidden');
+  scoreValue.textContent = '...';
+  scoreValue.className = 'text-6xl font-bold text-gray-500';
+  scoreCircle.className = 'absolute inset-0 flex items-center justify-center rounded-full border-8 border-gray-700 transition-all duration-500';
+  scoreVerdict.classList.add('hidden');
+  scoreBreakdown.classList.add('hidden');
+
+  try {
+    // Erstelle den Prompt für brutale VC-Bewertung
+    const prompt = `Du bist ein erfahrener VC-Partner. Bewerte dieses Startup-Konzept BRUTAL EHRLICH auf einer Skala von 0-100.
+
+DATEN:
+Problem: ${allData.problem}
+Lösung: ${allData.solution}
+Elevator Pitch: ${allData.pitch}
+
+Persona: ${allData.persona_name} (${allData.persona_demographics})
+Schmerzpunkte: ${allData.persona_pains}
+Wünsche: ${allData.persona_gains}
+
+MVP Features: ${allData.mvp_features}
+Kernfunktionen: ${allData.mvp_core1}, ${allData.mvp_core2}, ${allData.mvp_core3}
+Anti-Features: ${allData.mvp_anti_features}
+
+Validierung: ${allData.validation_method}
+Erfolgsmetrik: ${allData.validation_success}
+
+Ressourcen:
+- Stack: ${allData.resources_stack}
+- Budget: ${allData.resources_budget}
+- Zeit: ${allData.resources_time}
+
+Finanzen:
+- Preis: ${allData.calc_price}€
+- Variable Kosten: ${allData.calc_var_costs}€
+- Fixkosten: ${allData.calc_fixed_costs}€/Monat
+
+BEWERTUNGSKRITERIEN:
+1. **Marktgröße** (0-100): Ist der Markt groß genug? Gibt es echte zahlende Kunden?
+2. **Innovationsgrad** (0-100): Ist die Lösung wirklich innovativ oder nur "me too"?
+3. **Umsetzbarkeit** (0-100): Sind die Ressourcen realistisch? Kann das Team es schaffen?
+
+Berechne einen GESAMTSCORE (Durchschnitt der 3 Kriterien) und formuliere ein knappes, brutales VERDICT (1-2 Sätze).
+
+Antworte NUR als JSON:
+{
+  "score": 45,
+  "breakdown": {
+    "market": 30,
+    "innovation": 80,
+    "feasibility": 25
+  },
+  "verdict": "Zu nischig. Die Umsetzung ist unrealistisch mit diesem Budget."
+}`;
+
+    // API-Aufruf (ohne Search - hier brauchen wir Logik, keine Marktdaten)
+    const result = await callGeminiAPI(prompt, 0, false);
+    const aiResponse = result.text || result;
+
+    // Parse JSON
+    const scoreData = cleanAndParseJSON(aiResponse);
+
+    if (!scoreData.score || !scoreData.breakdown || !scoreData.verdict) {
+      throw new Error('Ungültiges Score-Format von der API');
+    }
+
+    // Rendere das Ergebnis
+    renderScore(scoreData);
+
+    // Speichere in Firestore (für Historie)
+    if (currentUser && activeProjectId) {
+      try {
+        await addDoc(collection(db, 'projects', activeProjectId, 'analyses'), {
+          section: 'final-score',
+          inputText: JSON.stringify(allData, null, 2),
+          outputText: JSON.stringify(scoreData, null, 2),
+          createdAt: serverTimestamp(),
+        });
+      } catch (saveError) {
+        console.error('Fehler beim Speichern des Scores:', saveError);
+      }
+    }
+
+    showSavedFeedback('VC-Score berechnet!');
+
+  } catch (error) {
+    console.error('Fehler beim Score-Berechnen:', error);
+    scoreValue.textContent = '?';
+    alert(`Fehler beim Berechnen des Scores: ${error.message}`);
+  } finally {
+    // UI: Loading State zurücksetzen
+    button.disabled = false;
+    spinner.classList.add('hidden');
+  }
+}
+
+function renderScore(scoreData) {
+  const scoreCircle = document.getElementById('score-circle');
+  const scoreValue = document.getElementById('score-value');
+  const scoreVerdict = document.getElementById('score-verdict');
+  const scoreBreakdown = document.getElementById('score-breakdown');
+
+  const score = Math.round(scoreData.score);
+  const breakdown = scoreData.breakdown;
+
+  // Färbe basierend auf Score
+  let borderColor = 'border-red-500';
+  let textColor = 'text-red-500';
+  if (score >= 80) {
+    borderColor = 'border-emerald-500';
+    textColor = 'text-emerald-500';
+  } else if (score >= 50) {
+    borderColor = 'border-yellow-500';
+    textColor = 'text-yellow-500';
+  }
+
+  // Update Score Circle
+  scoreCircle.className = `absolute inset-0 flex items-center justify-center rounded-full border-8 ${borderColor} transition-all duration-500`;
+  scoreValue.textContent = score;
+  scoreValue.className = `text-6xl font-bold ${textColor}`;
+
+  // Update Verdict
+  scoreVerdict.classList.remove('hidden');
+  scoreVerdict.querySelector('p').textContent = `"${scoreData.verdict}"`;
+
+  // Update Breakdown Bars
+  scoreBreakdown.classList.remove('hidden');
+  
+  const marketValue = Math.round(breakdown.market || 0);
+  const innovationValue = Math.round(breakdown.innovation || 0);
+  const feasibilityValue = Math.round(breakdown.feasibility || 0);
+
+  document.getElementById('score-market-value').textContent = `${marketValue}/100`;
+  document.getElementById('score-market-bar').style.width = `${marketValue}%`;
+
+  document.getElementById('score-innovation-value').textContent = `${innovationValue}/100`;
+  document.getElementById('score-innovation-bar').style.width = `${innovationValue}%`;
+
+  document.getElementById('score-feasibility-value').textContent = `${feasibilityValue}/100`;
+  document.getElementById('score-feasibility-bar').style.width = `${feasibilityValue}%`;
+
+  // Animation
+  setTimeout(() => {
+    scoreCircle.style.transform = 'scale(1.05)';
+    setTimeout(() => {
+      scoreCircle.style.transform = 'scale(1)';
+    }, 200);
+  }, 100);
+}
+
 function setupAnalyzeButtons() {
   // Event-Listener für alle Analyse-Buttons
   const buttonMappings = [
@@ -1422,6 +1678,12 @@ function setupAnalyzeButtons() {
   const competitorsButton = document.getElementById('btn-competitors');
   if (competitorsButton) {
     competitorsButton.addEventListener('click', analyzeCompetitors);
+  }
+
+  // Event-Listener für Final Score Button
+  const finalScoreButton = document.getElementById('btn-final-score');
+  if (finalScoreButton) {
+    finalScoreButton.addEventListener('click', calculateFinalScore);
   }
 }
 

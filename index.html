@@ -451,7 +451,77 @@
         <!-- STEP 6: TEAM -->
         <div class="wizard-step hidden" data-step="6">
             <section class="mb-16">
-                <h2 class="text-3xl font-bold text-white mb-8">Team-Modus</h2>
+                <h2 class="text-3xl font-bold text-white mb-8">🏁 Finales Scoring</h2>
+                
+                <!-- VC READINESS SCORE CARD -->
+                <div class="glass-panel p-8 mb-8">
+                    <div class="text-center mb-6">
+                        <h3 class="text-2xl font-bold text-white mb-2">VC Readiness Score</h3>
+                        <p class="text-sm text-gray-400">Brutale Bewertung deines Startup-Konzepts</p>
+                    </div>
+                    
+                    <!-- Score Circle -->
+                    <div class="flex justify-center mb-8">
+                        <div class="relative w-48 h-48">
+                            <div id="score-circle" class="absolute inset-0 flex items-center justify-center rounded-full border-8 border-gray-700 transition-all duration-500">
+                                <div class="text-center">
+                                    <div id="score-value" class="text-6xl font-bold text-gray-500">-</div>
+                                    <div class="text-sm text-gray-400">/ 100</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Verdict -->
+                    <div id="score-verdict" class="text-center mb-6 hidden">
+                        <p class="text-lg text-gray-300 italic"></p>
+                    </div>
+                    
+                    <!-- Breakdown Bars -->
+                    <div id="score-breakdown" class="space-y-4 mb-6 hidden">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-400">Marktgröße</span>
+                                <span id="score-market-value" class="text-white font-semibold">-</span>
+                            </div>
+                            <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+                                <div id="score-market-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-400">Innovationsgrad</span>
+                                <span id="score-innovation-value" class="text-white font-semibold">-</span>
+                            </div>
+                            <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+                                <div id="score-innovation-bar" class="h-full bg-purple-500 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-400">Umsetzbarkeit</span>
+                                <span id="score-feasibility-value" class="text-white font-semibold">-</span>
+                            </div>
+                            <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+                                <div id="score-feasibility-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Calculate Button -->
+                    <button id="btn-final-score" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                        <svg id="spinner-final-score" class="hidden animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>🏁 Finales Scoring berechnen</span>
+                    </button>
+                </div>
+                
+                <!-- Team Section -->
+                <h2 class="text-3xl font-bold text-white mb-8 mt-12">Team-Modus</h2>
                 <div class="glass-panel p-6">
                     <div class="flex flex-col md:flex-row gap-6">
                         <div class="flex-1">
