@@ -196,6 +196,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setupWizard();
   setupHistoryPanel();
   setupFinanceCalculator();
+  
+  // PDF Export Button
+  const pdfButton = document.getElementById('btn-export-pdf');
+  if (pdfButton) {
+    pdfButton.addEventListener('click', exportToPDF);
+  }
+  
   showStep(1); // Starte mit Schritt 1
 });
 
@@ -1888,7 +1895,17 @@ function setupHistoryPanel() {
         setTimeout(() => {
           historyPanel.classList.remove('translate-x-full');
         }, 10);
-        loadHistory();
+        
+        // Prüfe auth.currentUser als sicheren Fallback
+        const user = currentUser || auth?.currentUser;
+        if (user) {
+          loadHistory();
+        } else {
+          const historyContent = document.getElementById('history-content');
+          if (historyContent) {
+            historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
+          }
+        }
       } else {
         historyPanel.classList.add('translate-x-full');
         setTimeout(() => {
@@ -1910,16 +1927,33 @@ function setupHistoryPanel() {
 }
 
 async function loadHistory() {
-  if (!currentUser || !activeProjectId) {
-    const historyContent = document.getElementById('history-content');
-    if (historyContent) {
-      historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
-    }
+  const historyContent = document.getElementById('history-content');
+  if (!historyContent) return;
+
+  // Prüfe auth.currentUser als sicheren Fallback
+  const user = currentUser || auth?.currentUser;
+  
+  if (!user) {
+    historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
     return;
   }
 
-  const historyContent = document.getElementById('history-content');
-  if (!historyContent) return;
+  // Wenn activeProjectId noch nicht gesetzt ist, warte kurz
+  if (!activeProjectId) {
+    historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Projekt...</p>';
+    
+    // Warte maximal 3 Sekunden auf activeProjectId
+    let attempts = 0;
+    while (!activeProjectId && attempts < 30) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    
+    if (!activeProjectId) {
+      historyContent.innerHTML = '<p class="text-red-400 text-center">Projekt konnte nicht geladen werden.</p>';
+      return;
+    }
+  }
 
   historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Historie...</p>';
 
@@ -2024,11 +2058,14 @@ function calculateBreakEven() {
   }
 }
 
-// PDF Export Function
-window.exportToPDF = async function() {
-  const exportButton = document.getElementById('export-pdf-button');
-  const exportText = document.getElementById('export-pdf-text');
-  const exportSpinner = document.getElementById('export-pdf-spinner');
+// ============================================
+// PDF EXPORT FUNCTION (Simplified & Fixed)
+// ============================================
+
+async function exportToPDF() {
+  const exportButton = document.getElementById('btn-export-pdf');
+  const exportText = document.getElementById('text-export-pdf');
+  const exportSpinner = document.getElementById('spinner-export-pdf');
   
   if (!exportButton || !exportText) {
     console.error('Export-Button nicht gefunden');
@@ -2038,120 +2075,95 @@ window.exportToPDF = async function() {
   // UI: Loading State
   exportButton.disabled = true;
   exportText.textContent = 'Generiere PDF...';
-  exportSpinner.classList.remove('hidden');
+  if (exportSpinner) exportSpinner.classList.remove('hidden');
 
   try {
-    // Schritt A: Daten füllen
-    const template = document.getElementById('pdf-template');
-    if (!template) {
-      throw new Error('PDF-Template nicht gefunden');
-    }
+    // Sammle alle Daten
+    const projectName = document.getElementById('activeProjectName')?.textContent || 'Startup-Projekt';
+    const problem = document.getElementById('problem')?.value || '-';
+    const solution = document.getElementById('solution')?.value || '-';
+    const pitch = document.getElementById('pitch')?.value || '-';
+    const persona = document.getElementById('persona_full')?.value || '-';
+    const mvpFeatures = document.getElementById('mvp_features')?.value || '-';
+    const mvpAntiFeatures = document.getElementById('mvp_anti_features')?.value || '-';
+    const validationMethod = document.getElementById('validation_method')?.value || '-';
+    const validationSuccess = document.getElementById('validation_success')?.value || '-';
+    
+    const today = new Date().toLocaleDateString('de-DE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
 
-    // Projektname
-    const projectNameEl = document.getElementById('pdf-project-name');
-    if (projectNameEl) {
-      const activeProjectNameEl = document.getElementById('activeProjectName');
-      projectNameEl.textContent = activeProjectNameEl ? activeProjectNameEl.textContent : 'Persönliches Projekt';
-    }
+    // Erstelle ein HTML-Template direkt im Code
+    const pdfContent = `
+      <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; background: white; color: black;">
+        <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #3b82f6; padding-bottom: 20px;">
+          <h1 style="font-size: 32px; margin: 0 0 10px 0; color: #1f2937;">Investment Memo</h1>
+          <h2 style="font-size: 24px; margin: 0; color: #3b82f6;">${escapeHtml(projectName)}</h2>
+          <p style="color: #6b7280; margin-top: 10px;">${today}</p>
+        </div>
 
-    // Datum
-    const dateEl = document.getElementById('pdf-date');
-    if (dateEl) {
-      dateEl.textContent = new Date().toLocaleDateString('de-DE', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    }
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">01 | Das Problem</h3>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(problem)}</p>
+        </div>
 
-    // Problem & Lösung
-    const problemEl = document.getElementById('pdf-problem');
-    const solutionEl = document.getElementById('pdf-solution');
-    if (problemEl) {
-      const problemInput = document.getElementById('problem');
-      problemEl.textContent = problemInput ? problemInput.value || '-' : '-';
-    }
-    if (solutionEl) {
-      const solutionInput = document.getElementById('solution');
-      solutionEl.textContent = solutionInput ? solutionInput.value || '-' : '-';
-    }
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">02 | Die Lösung</h3>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(solution)}</p>
+        </div>
 
-    // Persona
-    const personaEl = document.getElementById('pdf-persona');
-    if (personaEl) {
-      const personaName = document.getElementById('persona_name')?.value || '';
-      const personaDemo = document.getElementById('persona_demographics')?.value || '';
-      const personaPains = document.getElementById('persona_pains')?.value || '';
-      const personaGains = document.getElementById('persona_gains')?.value || '';
-      
-      let personaHtml = '';
-      if (personaName) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Name:</strong> ${personaName}</p>`;
-      if (personaDemo) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Demografie:</strong> ${personaDemo}</p>`;
-      if (personaPains) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Schmerzpunkte:</strong> ${personaPains}</p>`;
-      if (personaGains) personaHtml += `<p style="margin: 0 0 3mm 0;"><strong>Gewünschte Ergebnisse:</strong> ${personaGains}</p>`;
-      
-      personaEl.innerHTML = personaHtml || '<p style="margin: 0;">-</p>';
-    }
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">03 | Elevator Pitch</h3>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(pitch)}</p>
+        </div>
 
-    // Validierung
-    const validationEl = document.getElementById('pdf-validation');
-    if (validationEl) {
-      const validationMethod = document.getElementById('validation_method')?.value || '';
-      const validationSuccess = document.getElementById('validation_success')?.value || '';
-      
-      let validationHtml = '';
-      if (validationMethod) validationHtml += `<p style="margin: 0 0 3mm 0;"><strong>Testmethode:</strong> ${validationMethod}</p>`;
-      if (validationSuccess) validationHtml += `<p style="margin: 0 0 3mm 0;"><strong>Erfolgsmetrik:</strong> ${validationSuccess}</p>`;
-      
-      validationEl.innerHTML = validationHtml || '<p style="margin: 0;">-</p>';
-    }
+        <div style="margin-bottom: 30px; page-break-before: always;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">04 | Zielgruppen-Persona</h3>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(persona)}</p>
+        </div>
 
-    // Kritik (letzte Hypothese-Analyse)
-    const critiqueEl = document.getElementById('pdf-critique');
-    if (critiqueEl && lastHypothesisAnalysis) {
-      // Konvertiere Markdown zu einfachem Text für PDF
-      const critiqueText = lastHypothesisAnalysis.outputText || '-';
-      critiqueEl.innerHTML = `<p style="margin: 0; white-space: pre-wrap;">${critiqueText.replace(/\*\*/g, '').replace(/##/g, '').replace(/###/g, '')}</p>`;
-    } else if (critiqueEl) {
-      const responseHypothese = document.getElementById('response-hypothese');
-      if (responseHypothese && !responseHypothese.classList.contains('hidden')) {
-        const critiqueText = responseHypothese.innerText || '-';
-        critiqueEl.innerHTML = `<p style="margin: 0; white-space: pre-wrap;">${critiqueText}</p>`;
-      } else {
-        critiqueEl.innerHTML = '<p style="margin: 0;">-</p>';
-      }
-    }
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">05 | MVP Features</h3>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(mvpFeatures)}</p>
+          <h4 style="color: #d97706; margin-top: 20px;">Anti-Features (Was es NICHT ist)</h4>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(mvpAntiFeatures)}</p>
+        </div>
 
-    // Pivot (falls vorhanden)
-    const pivotEl = document.getElementById('pdf-pivot-content');
-    if (pivotEl) {
-      const problemInput = document.getElementById('problem');
-      const solutionInput = document.getElementById('solution');
-      if (problemInput && solutionInput && (problemInput.value || solutionInput.value)) {
-        pivotEl.innerHTML = `
-          <p style="margin: 0 0 3mm 0;"><strong>Problem:</strong> ${problemInput.value || '-'}</p>
-          <p style="margin: 0;"><strong>Lösung:</strong> ${solutionInput.value || '-'}</p>
-        `;
-      } else {
-        pivotEl.innerHTML = '<p style="margin: 0;">-</p>';
-      }
-    }
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">06 | Validierung</h3>
+          <p style="margin-bottom: 10px;"><strong>Testmethode:</strong></p>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(validationMethod)}</p>
+          <p style="margin-top: 15px; margin-bottom: 10px;"><strong>Erfolgsmetrik:</strong></p>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(validationSuccess)}</p>
+        </div>
 
-    // Schritt B: PDF generieren
-    // Klone das Template und mache es sichtbar (off-screen)
-    const clonedTemplate = template.cloneNode(true);
-    clonedTemplate.id = 'pdf-template-clone';
-    clonedTemplate.classList.remove('hidden');
-    clonedTemplate.style.position = 'absolute';
-    clonedTemplate.style.left = '-9999px';
-    clonedTemplate.style.top = '0';
-    document.body.appendChild(clonedTemplate);
+        <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>Erstellt mit VentureValidator | ${today}</p>
+        </div>
+      </div>
+    `;
+
+    // Erstelle temporäres Element für PDF
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = pdfContent;
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '0';
+    tempDiv.style.width = '210mm';
+    tempDiv.style.background = 'white';
+    document.body.appendChild(tempDiv);
 
     // Warte kurz, damit das Layout gerendert wird
     await new Promise(resolve => setTimeout(resolve, 100));
 
+    // Prüfe ob html2pdf verfügbar ist
+    if (typeof html2pdf === 'undefined') {
+      throw new Error('html2pdf library ist nicht geladen. Bitte Seite neu laden.');
+    }
+
     // PDF generieren
-    const projectName = document.getElementById('activeProjectName')?.textContent || 'Projekt';
     const filename = `Investment-Memo-${projectName.replace(/\s+/g, '-')}.pdf`;
 
     await html2pdf().set({
@@ -2160,10 +2172,10 @@ window.exportToPDF = async function() {
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }).from(clonedTemplate).save();
+    }).from(tempDiv).save();
 
-    // Cleanup: Entferne geklontes Template
-    document.body.removeChild(clonedTemplate);
+    // Cleanup
+    document.body.removeChild(tempDiv);
 
     showToast('PDF erfolgreich erstellt!', 'success');
     

@@ -39,6 +39,9 @@
     <!-- Confetti for Delight Features -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
+    <!-- html2pdf for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <style>
         ::-webkit-scrollbar {
             width: 6px;
@@ -523,6 +526,19 @@
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         <span>🏁 Finales Scoring berechnen</span>
+                    </button>
+                </div>
+                
+                <!-- PDF Export -->
+                <div class="glass-panel p-6 mb-8">
+                    <h3 class="text-xl font-bold text-white mb-3">📄 Investment Memo</h3>
+                    <p class="text-sm text-gray-400 mb-4">Exportiere dein komplettes Startup-Konzept als professionelles PDF-Dokument für Investoren.</p>
+                    <button id="btn-export-pdf" class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                        <svg id="spinner-export-pdf" class="hidden animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span id="text-export-pdf">📄 Als Investment Memo exportieren (PDF)</span>
                     </button>
                 </div>
                 
