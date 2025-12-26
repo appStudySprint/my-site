@@ -215,6 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
     pdfButton.addEventListener('click', exportToPDF);
   }
   
+  // Finish Project Button
+  const finishButton = document.getElementById('btn-finish-project');
+  if (finishButton) {
+    finishButton.addEventListener('click', finishProject);
+  }
+  
   showStep(1); // Starte mit Schritt 1
 });
 
@@ -2043,7 +2049,12 @@ function updateNavigationButtons(stepNumber) {
   // Update "Weiter" Button Text für letzten Schritt
   document.querySelectorAll('.wizard-nav-next').forEach((button) => {
     if (stepNumber === totalSteps) {
-      button.textContent = 'Abschließen ✓';
+      // Für Step 6: Button hat bereits ID btn-finish-project und korrekten Text
+      if (button.id === 'btn-finish-project') {
+        button.textContent = '🏁 Projekt abschließen & Neustart';
+      } else {
+        button.textContent = 'Abschließen ✓';
+      }
       button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
       button.classList.add('bg-green-600', 'hover:bg-green-700');
     } else {
@@ -2487,5 +2498,69 @@ async function exportToPDF() {
     btn.disabled = false;
     btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
     if (btnSpinner) btnSpinner.classList.add('hidden');
+  }
+}
+
+// ============================================
+// FINISH PROJECT FUNCTION
+// ============================================
+
+async function finishProject() {
+  if (!currentUser || !activeProjectId) {
+    showToast('Bitte melde dich an, um ein Projekt abzuschließen.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btn-finish-project');
+  if (!btn) {
+    console.error('Finish-Button nicht gefunden');
+    return;
+  }
+
+  const originalText = btn.innerHTML;
+  const originalDisabled = btn.disabled;
+  
+  try {
+    btn.disabled = true;
+    btn.innerHTML = 'Speichere...';
+
+    // 1. Status in Firestore auf 'completed' setzen
+    await updateDoc(doc(db, 'projects', activeProjectId), {
+      status: 'completed',
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // 2. Feedback (Feier)
+    if (typeof confetti !== 'undefined') {
+      confetti({ 
+        particleCount: 150, 
+        spread: 70, 
+        origin: { y: 0.6 } 
+      });
+    }
+    showToast('Projekt erfolgreich abgeschlossen!', 'success');
+
+    // 3. Reset für neues Projekt (nach kurzer Verzögerung)
+    setTimeout(async () => {
+      // UI Reset
+      document.querySelectorAll('input, textarea').forEach(el => {
+        el.value = '';
+        autosize(el);
+      });
+      
+      // Zurück zu Schritt 1
+      jumpToStep(1);
+      
+      // Reload erzwingen, um sauber neu zu starten
+      // (Das ist am sichersten, damit initializeForUser ein neues Projekt erstellt)
+      window.location.reload(); 
+    }, 2500);
+
+  } catch (error) {
+    console.error('Fehler beim Abschließen:', error);
+    showToast('Fehler beim Abschließen: ' + error.message, 'error');
+    btn.disabled = originalDisabled;
+    btn.innerHTML = originalText;
   }
 }
