@@ -3,10 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gründer-Cockpit</title>
     
+    <!-- Title & Description -->
+    <title>VentureValidator | Dein KI Co-Founder</title>
+    <meta name="description" content="Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot. Powered by Google Gemini Pro.">
+    <meta name="keywords" content="Startup, Validation, KI, AI, MVP, Business Model, Gründen, Entrepreneurship">
+    <meta name="author" content="VentureValidator">
+    
+    <!-- Favicon (Rakete Emoji als SVG) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://venturevalidator.netlify.app/">
+    <meta property="og:title" content="VentureValidator | Dein KI Co-Founder">
+    <meta property="og:description" content="Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot.">
+    <meta property="og:image" content="https://venturevalidator.netlify.app/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://venturevalidator.netlify.app/">
+    <meta property="twitter:title" content="VentureValidator | Dein KI Co-Founder">
+    <meta property="twitter:description" content="Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot.">
+    <meta property="twitter:image" content="https://venturevalidator.netlify.app/og-image.png">
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="/styles/main.css" />
     
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -28,11 +52,16 @@
     <!-- Landing Page -->
     <div id="landing-page" class="min-h-screen flex items-center justify-center px-6">
         <div class="max-w-3xl text-center">
-            <h1 class="text-6xl font-bold text-white mb-6">Baue ein Business, keine Features</h1>
-            <p class="text-xl text-gray-400 mb-12">Von der vagen Idee zur validierten Hypothese. Schritt für Schritt zum erfolgreichen Startup.</p>
-            <button id="landingStartButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-200">
-                Starten
+            <div class="mb-6">
+                <span class="text-7xl">🚀</span>
+            </div>
+            <h1 class="text-6xl font-bold text-white mb-4">VentureValidator</h1>
+            <p class="text-2xl text-blue-400 mb-8">Dein KI Co-Founder</p>
+            <p class="text-xl text-gray-400 mb-12">Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot.</p>
+            <button id="landingStartButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-xl">
+                Jetzt starten — kostenlos
             </button>
+            <p class="text-sm text-gray-500 mt-6">Powered by Google Gemini Pro & Search</p>
         </div>
     </div>
 
@@ -43,7 +72,7 @@
     <header class="sticky top-0 z-50 glass-panel mb-8 px-6 py-4">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="flex items-center gap-4">
-                <h1 class="text-2xl font-bold text-white">🚀 Gründer-Cockpit</h1>
+                <h1 class="text-2xl font-bold text-white">🚀 VentureValidator</h1>
                 <span class="text-blue-400 text-sm">|</span>
                 <span class="text-sm text-gray-400">
                     Projekt: <span id="activeProjectName" class="text-blue-400 font-medium">Persönliches Projekt</span>
@@ -572,13 +601,23 @@
         </div>
 
         <!-- FOOTER -->
-        <footer class="mt-16 text-center hidden">
-            <button id="clearButton" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200">
-                Projekt zurücksetzen
-            </button>
-            <p class="text-sm text-gray-500 mt-4">
-                Alle Daten werden lokal in Ihrem Browser gespeichert.
-            </p>
+        <footer class="mt-16 text-center pb-8">
+            <div class="mb-6">
+                <button id="clearButton" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200">
+                    Projekt zurücksetzen
+                </button>
+            </div>
+            <div class="border-t border-gray-800 pt-6">
+                <p class="text-sm text-gray-400 mb-2">
+                    <span class="font-semibold text-white">VentureValidator</span> — Validiere deine Startup-Idee mit KI
+                </p>
+                <p class="text-xs text-gray-500">
+                    Version 1.2 • Powered by Gemini Pro & Google Search
+                </p>
+                <p class="text-xs text-gray-600 mt-2">
+                    Alle Daten werden sicher in deinem Browser und optional in Firebase gespeichert.
+                </p>
+            </div>
         </footer>
 
     </main>
