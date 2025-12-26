@@ -62,8 +62,8 @@ export default async (req, context) => {
     console.log('📡 Forwarding request to Google Gemini API...');
 
     // 3. Leite die Anfrage an Google weiter (Server-to-Server)
-    // Verwende gemini-1.5-flash (stabil, höhere Rate-Limits: 1.500 Requests/Tag im Free Tier)
-    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Verwende gemini-2.5-flash (neueste Version)
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     let googleResponse;
     try {
