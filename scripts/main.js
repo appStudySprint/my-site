@@ -2185,46 +2185,23 @@ async function exportToPDF() {
       </div>
     `;
 
-    // Erstelle Vollbild-Overlay für PDF (html2canvas braucht sichtbares Element)
+    // Erstelle temporäres Element für PDF (OFF-SCREEN - blockiert niemals die UI)
     tempDiv = document.createElement('div');
-    tempDiv.id = 'pdf-export-overlay';
-    tempDiv.innerHTML = `
-      <div style="position: fixed; top: 0; right: 0; padding: 20px; z-index: 10000;">
-        <button id="pdf-cancel-btn" style="background: #ef4444; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-          ✕ Abbrechen
-        </button>
-      </div>
-      ${pdfContent}
-    `;
+    tempDiv.innerHTML = pdfContent;
     
-    // Vollbild-Overlay Styling (sichtbar für html2canvas)
+    // WICHTIG: Off-Screen positionieren - weit außerhalb des Bildschirms
+    // html2pdf kann es rendern, aber es blockiert niemals Maus-Klicks
     tempDiv.style.position = 'fixed';
+    tempDiv.style.left = '-10000px';
     tempDiv.style.top = '0';
-    tempDiv.style.left = '0';
-    tempDiv.style.width = '100%';
-    tempDiv.style.height = '100%';
-    tempDiv.style.zIndex = '9999';
+    tempDiv.style.width = '210mm';
     tempDiv.style.background = 'white';
-    tempDiv.style.overflowY = 'scroll';
+    tempDiv.style.color = 'black';
+    // KEIN z-index - damit es niemals im Vordergrund ist
     document.body.appendChild(tempDiv);
 
-    // Abbrechen-Button Event Listener
-    const cancelBtn = document.getElementById('pdf-cancel-btn');
-    const cancelHandler = () => {
-      if (tempDiv && document.body.contains(tempDiv)) {
-        document.body.removeChild(tempDiv);
-      }
-      exportButton.disabled = false;
-      exportText.textContent = '📄 Als Investment Memo exportieren (PDF)';
-      if (exportSpinner) exportSpinner.classList.add('hidden');
-      showToast('PDF-Export abgebrochen', 'warning');
-    };
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', cancelHandler);
-    }
-
     // Warte kurz, damit das Layout gerendert wird
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Prüfe ob html2pdf verfügbar ist
     if (typeof html2pdf === 'undefined') {
