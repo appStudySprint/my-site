@@ -2153,6 +2153,7 @@ async function exportToPDF() {
 
     // 3. Erstelle Ghost-Element (Off-Screen Container)
     ghostElement = document.createElement('div');
+    ghostElement.id = 'pdf-ghost-element';
     Object.assign(ghostElement.style, {
       width: '210mm',
       minHeight: '297mm',
@@ -2163,8 +2164,11 @@ async function exportToPDF() {
       fontSize: '12px',
       lineHeight: '1.6',
       position: 'fixed',
-      left: '-10000px', // Unsichtbar für User - blockiert niemals UI
-      top: '0'
+      left: '-10000px', // Weit außerhalb des sichtbaren Bereichs
+      top: '0',
+      zIndex: '-9999', // Sehr niedriger z-index - niemals im Vordergrund
+      pointerEvents: 'none', // Blockiert keine Maus-Events
+      overflow: 'hidden' // Verhindert Scrollbars
     });
 
     // 4. Berechne Break-Even (falls vorhanden)
@@ -2284,37 +2288,70 @@ async function exportToPDF() {
       </div>
     `;
 
-    // 6. Füge Ghost-Element zum Body hinzu (Off-Screen)
+    // 6. Füge Ghost-Element zum Body hinzu (zuerst unsichtbar)
+    ghostElement.style.visibility = 'hidden';
+    ghostElement.style.opacity = '0';
+    ghostElement.style.pointerEvents = 'none'; // WICHTIG: Blockiert keine Klicks
     document.body.appendChild(ghostElement);
 
     // 7. Kurz warten, damit Layout gerendert wird
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // 8. Prüfe ob html2pdf verfügbar ist
     if (typeof html2pdf === 'undefined') {
       throw new Error('html2pdf library nicht geladen. Bitte Seite neu laden.');
     }
 
-    // 9. PDF generieren
+    // 9. Button SOFORT wieder aktivieren (bevor PDF-Generierung startet)
+    // Das verhindert, dass die App "gefroren" wirkt
+    btn.disabled = false;
+    btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
+    if (btnSpinner) btnSpinner.classList.add('hidden');
+
+    // 10. Mache Element kurz sichtbar für html2canvas (aber immer noch off-screen)
+    // html2canvas braucht ein sichtbares Element, aber wir halten es weit weg
+    ghostElement.style.visibility = 'visible';
+    ghostElement.style.opacity = '1';
+    
+    // 11. PDF generieren (asynchron - blockiert UI nicht)
     const filename = `Investment-Memo-${projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.pdf`;
 
-    await html2pdf().set({
-      margin: [15, 15, 15, 15],
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true,
-        logging: false,
-        letterRendering: true
-      },
-      jsPDF: { 
-        unit: 'mm', 
-        format: 'a4', 
-        orientation: 'portrait' 
-      },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    }).from(ghostElement).save();
+    // Timeout-Fallback: Wenn PDF-Generierung zu lange dauert, zeige Warnung
+    const timeoutId = setTimeout(() => {
+      showToast('PDF-Generierung dauert länger als erwartet...', 'warning');
+    }, 5000);
+
+    try {
+      // PDF-Generierung
+      await html2pdf().set({
+        margin: [15, 15, 15, 15],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          letterRendering: true,
+          windowWidth: 794, // A4 width in pixels at 96dpi
+          windowHeight: 1123 // A4 height in pixels at 96dpi
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }).from(ghostElement).save();
+
+      clearTimeout(timeoutId);
+    } catch (pdfError) {
+      clearTimeout(timeoutId);
+      throw pdfError;
+    } finally {
+      // Element sofort wieder unsichtbar machen
+      ghostElement.style.visibility = 'hidden';
+      ghostElement.style.opacity = '0';
+    }
 
     // 10. Erfolg-Feedback
     showToast('PDF erfolgreich erstellt!', 'success');
@@ -2333,15 +2370,19 @@ async function exportToPDF() {
     showToast('Fehler: ' + error.message, 'error');
   } finally {
     // KRITISCH: Cleanup GARANTIERT - verhindert Zombie-Element
-    if (ghostElement && document.body.contains(ghostElement)) {
-      try {
-        document.body.removeChild(ghostElement);
-      } catch (cleanupError) {
-        console.error('Fehler beim Cleanup:', cleanupError);
+    // Warte kurz, damit PDF-Generierung abgeschlossen ist
+    setTimeout(() => {
+      if (ghostElement && document.body.contains(ghostElement)) {
+        try {
+          document.body.removeChild(ghostElement);
+        } catch (cleanupError) {
+          console.error('Fehler beim Cleanup:', cleanupError);
+        }
       }
-    }
+    }, 500); // Kurze Verzögerung für PDF-Download
     
-    // UI: Button sofort wieder aktivieren (GARANTIERT)
+    // UI: Button ist bereits wieder aktiviert (wurde vor PDF-Generierung gemacht)
+    // Aber sicherheitshalber nochmal setzen
     btn.disabled = false;
     btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
     if (btnSpinner) btnSpinner.classList.add('hidden');
