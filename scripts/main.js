@@ -1261,7 +1261,7 @@ async function pivotIdea() {
     return;
   }
 
-  const pivotButton = document.getElementById('pivot-button');
+  const pivotButton = document.getElementById('btn-pivot');
   const pivotButtonText = document.getElementById('pivot-button-text');
   const pivotSpinner = document.getElementById('pivot-spinner');
   const problemField = document.getElementById('problem');
