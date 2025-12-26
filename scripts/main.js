@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAuthUi();
   loadLocalData();
   autosizeAll();
+  setupAutosize(); // Initialisiere Autosize für alle Textareas
   bindFieldListeners();
   setupClearButton();
   setupInviteForm();
@@ -894,8 +895,29 @@ function captureInviteFromUrl() {
 }
 
 function autosize(element) {
-  element.style.height = 'auto';
-  element.style.height = `${element.scrollHeight}px`;
+  if (!element) return;
+  element.style.height = 'auto'; // Reset, um Schrumpfen zu erlauben
+  element.style.height = element.scrollHeight + 'px'; // Setze auf Content-Höhe
+}
+
+function setupAutosize() {
+  // Finde alle Textareas in der App
+  const textareas = document.querySelectorAll('textarea');
+  
+  textareas.forEach(textarea => {
+    // Entferne alte Listener (falls vorhanden)
+    textarea.removeEventListener('input', handleAutosizeInput);
+    
+    // Füge neuen Listener hinzu
+    textarea.addEventListener('input', handleAutosizeInput);
+    
+    // Initialisiere die Größe für vorhandenen Content
+    autosize(textarea);
+  });
+}
+
+function handleAutosizeInput(event) {
+  autosize(event.target);
 }
 
 function throttle(fn, wait) {
@@ -1447,6 +1469,11 @@ function showStep(stepNumber) {
 
   // Update Navigation Buttons
   updateNavigationButtons(stepNumber);
+
+  // Autosize für alle Textareas im neuen Step
+  setTimeout(() => {
+    setupAutosize();
+  }, 50); // Kurze Verzögerung, damit DOM bereit ist
 
   // Scroll nach oben
   window.scrollTo({ top: 0, behavior: 'smooth' });
