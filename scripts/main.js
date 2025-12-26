@@ -174,14 +174,18 @@ let activeProjectId = null;
 let activeProjectName = 'Persönliches Projekt';
 let currentMembership = { role: 'owner' };
 
-const throttledLocalSave = throttle(saveLocalData, 200);
-const throttledFirestoreSave = throttle(persistRemoteUpdates, 500);
+// Throttled functions werden später initialisiert, nachdem die Funktionen definiert sind
+let throttledLocalSave = null;
+let throttledFirestoreSave = null;
 
 // Wizard State Management
 let currentStep = 1;
 const totalSteps = 6;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialisiere throttled functions zuerst
+  initializeThrottledFunctions();
+  
   setupAuthUi();
   loadLocalData();
   autosizeAll();
@@ -1087,6 +1091,16 @@ function throttle(fn, wait) {
       }, remaining);
     }
   };
+}
+
+// Initialisiere throttled functions nach Definition
+function initializeThrottledFunctions() {
+  if (!throttledLocalSave) {
+    throttledLocalSave = throttle(saveLocalData, 200);
+  }
+  if (!throttledFirestoreSave) {
+    throttledFirestoreSave = throttle(persistRemoteUpdates, 500);
+  }
 }
 
 // ============================================
