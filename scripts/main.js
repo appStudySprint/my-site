@@ -1107,7 +1107,26 @@ async function analyzeSection(sectionName) {
       buttonId: 'analyze-hypothese',
       spinnerId: 'spinner-hypothese',
       responseId: 'response-hypothese',
-      prompt: 'Du bist ein skeptischer VC. Kritisiere dieses Problem und die Lösung hart.',
+      prompt: `Du bist ein erfahrener, analytischer Venture Capitalist. Deine Aufgabe ist ein objektiver Due-Diligence-Check.
+
+REGELN:
+1. Sei rigoros bei Schwachstellen (Marktgröße, Burggraben, Marge).
+2. ABER: Wenn eine Idee Potenzial hat, erkenne das an! Lob ist erlaubt.
+3. Unterscheide zwischen "tödlichen Fehlern" und "lösbaren Problemen".
+4. Wenn die Idee nach einem Pivot (Optimierung) solide ist, gib ein "Vorsichtiges Go".
+
+Antworte im Markdown-Format:
+## 💡 Stärken der Idee
+[Was funktioniert gut?]
+
+## ⚠️ Kritische Schwachstellen
+[Tödliche Fehler, die sofort behoben werden müssen]
+
+## 🔧 Lösbare Probleme
+[Dinge, die optimiert werden können]
+
+## 🎯 Fazit
+[Klares Verdict: Go / Pivot / No-Go]`,
       fields: ['problem', 'solution', 'pitch']
     },
     'persona': {
@@ -1279,7 +1298,23 @@ async function pivotIdea() {
 
   try {
     // Erstelle den Pivot-Prompt
-    const pivotPrompt = `Hier ist meine Idee: ${lastHypothesisAnalysis.inputText}\n\nHier ist deine vernichtende Kritik dazu: ${lastHypothesisAnalysis.outputText}\n\nSchreibe das Problem und die Lösung komplett neu, um alle Schwachpunkte zu beheben. Antworte NUR als reines JSON ohne Markdown-Formatierung: { "problem": "...", "solution": "..." }`;
+    const pivotPrompt = `Hier ist meine Startup-Idee:
+${lastHypothesisAnalysis.inputText}
+
+Hier ist das VC-Feedback dazu:
+${lastHypothesisAnalysis.outputText}
+
+DEINE AUFGABE:
+Schreibe das Problem und die Lösung komplett neu, um die kritischen Schwachstellen zu beheben.
+
+KRITERIEN FÜR DEN PIVOT:
+1. **Marktfähigkeit**: Der Markt muss groß genug und erreichbar sein.
+2. **Realistische Umsetzung**: Die Lösung muss mit begrenzten Ressourcen baubar sein.
+3. **Klarer Mehrwert**: Die Lösung muss 10x besser sein als der Status Quo, nicht nur anders.
+4. **Monetarisierung**: Es muss klar sein, wer wofür bezahlt.
+
+Antworte NUR als reines JSON ohne Markdown-Formatierung:
+{ "problem": "...", "solution": "..." }`;
 
     // API-Aufruf über zentrale Funktion
     const result = await callGeminiAPI(pivotPrompt, 0, false);
