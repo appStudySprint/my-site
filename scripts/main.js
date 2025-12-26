@@ -151,22 +151,22 @@ function cleanAndParseJSON(text) {
 // ENDE ZENTRALE API-KOMMUNIKATION
 // ============================================
 
-// Alle Input/Textarea IDs, die gespeichert werden müssen
+// Alle Input/Textarea IDs, die gespeichert werden müssen (EXAKT wie im HTML)
 const fieldIds = [
-  'problem',           // Step 1: Problem
-  'solution',          // Step 1: Lösung
-  'pitch',             // Step 1: Elevator Pitch
-  'persona_full',      // Step 2: Persona (vollständig)
-  'mvp_features',      // Step 3: MVP Features
-  'mvp_anti_features', // Step 3: Anti-Features
-  'validation_method', // Step 4: Validierungsmethode
-  'validation_success', // Step 4: Erfolgsmetrik
-  'calc_price',        // Step 5: Verkaufspreis
-  'calc_var_costs',    // Step 5: Variable Kosten
-  'calc_fixed_costs',  // Step 5: Fixkosten
-  'resources_stack',   // Step 6: Tech Stack
-  'resources_budget',  // Step 6: Budget
-  'resources_time',    // Step 6: Zeit
+  'problem',              // Step 1: Problem
+  'solution',             // Step 1: Lösung
+  'pitch',                // Step 1: Elevator Pitch
+  'persona_full',         // Step 2: Persona (vollständig)
+  'mvp_features',         // Step 3: MVP Features
+  'mvp_anti_features',    // Step 3: Anti-Features
+  'validation_method',    // Step 4: Validierungsmethode
+  'validation_success',   // Step 4: Erfolgsmetrik
+  'calc_price',           // Step 5: Verkaufspreis
+  'calc_var_costs',       // Step 5: Variable Kosten
+  'calc_fixed_costs',     // Step 5: Fixkosten
+  'resources_stack',      // Step 6: Tech Stack
+  'resources_budget',     // Step 6: Budget
+  'resources_time',       // Step 6: Zeit
 ];
 
 const LOCAL_STORAGE_PREFIX = 'projektDashboardData';
@@ -432,19 +432,46 @@ async function saveToWaitlist(email) {
 }
 
 async function initializeForUser(user) {
+  console.log('[initializeForUser] START für User:', user.uid);
+  
   // SCHRITT 1: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
   // Wir warten nicht auf die Datenbank. Wenn der User da ist, zeig die Sektion!
   toggleTeamSection(true); 
 
   try {
     // SCHRITT 2: Datenbank-Operationen
+    console.log('[initializeForUser] ensureOwnerProject...');
     await ensureOwnerProject(user);
+    
+    console.log('[initializeForUser] resolveActiveProject...');
     await resolveActiveProject(user);
+    
+    console.log('[initializeForUser] activeProjectId nach resolveActiveProject:', activeProjectId);
+    
+    // KRITISCH: Prüfe ob activeProjectId wirklich gesetzt wurde
+    if (!activeProjectId) {
+      console.error('[initializeForUser] FEHLER: activeProjectId ist NULL nach resolveActiveProject!');
+      const defaultId = `${user.uid}-personal`;
+      console.log('[initializeForUser] Setze activeProjectId manuell auf:', defaultId);
+      activeProjectId = defaultId;
+      await setActiveProject(defaultId);
+    }
+    
+    console.log('[initializeForUser] FINAL activeProjectId:', activeProjectId);
+    console.log('[initializeForUser] projectDocRef:', projectDocRef?.id);
+    
     watchIncomingInvites(user);
+    
+    console.log('[initializeForUser] ERFOLG - Initialisierung abgeschlossen');
     
   } catch (error) {
     // SCHRITT 3: Fehler sichtbar machen
-    console.error('Fehler bei der Initialisierung:', error);
+    console.error('[initializeForUser] FEHLER bei der Initialisierung:', error);
+    console.error('[initializeForUser] Error Details:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    });
     
     // WICHTIG: Wir zeigen den Fehler jetzt direkt auf dem Bildschirm an via Toast.
     // So wissen wir SOFORT, ob es an den Regeln oder der Verbindung liegt.
@@ -490,17 +517,31 @@ async function resolveActiveProject(user) {
 }
 
 async function setActiveProject(projectId) {
-  if (!currentUser) return;
-  if (activeProjectId === projectId) return;
+  console.log('[setActiveProject] START für projectId:', projectId);
+  console.log('[setActiveProject] currentUser:', currentUser?.uid);
+  
+  if (!currentUser) {
+    console.error('[setActiveProject] KEIN USER - Abbrechen');
+    return;
+  }
+  
+  if (activeProjectId === projectId) {
+    console.log('[setActiveProject] Project bereits aktiv, überspringe');
+    return;
+  }
 
+  console.log('[setActiveProject] Setze activeProjectId auf:', projectId);
   clearProjectSubscriptions();
   activeProjectId = projectId;
   localStorage.setItem('activeProjectId', projectId);
 
   projectDocRef = doc(db, 'projects', projectId);
+  console.log('[setActiveProject] projectDocRef erstellt:', projectDocRef.id);
+  
   const projectSnap = await getDoc(projectDocRef);
 
   if (!projectSnap.exists()) {
+    console.log('[setActiveProject] Projekt existiert nicht, erstelle neues Projekt');
     await setDoc(projectDocRef, {
       ownerId: currentUser.uid,
       name: 'Projekt',
@@ -508,15 +549,20 @@ async function setActiveProject(projectId) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    console.log('[setActiveProject] Neues Projekt erstellt');
+  } else {
+    console.log('[setActiveProject] Projekt existiert bereits');
   }
 
   const data = projectSnap.data() ?? {};
   activeProjectName = data.name ?? 'Projekt';
+  console.log('[setActiveProject] activeProjectName:', activeProjectName);
   updateProjectLabel();
 
   const membershipSnap = await getDoc(doc(db, 'projects', projectId, 'members', currentUser.uid));
   currentMembership = membershipSnap.exists() ? membershipSnap.data() : { role: 'viewer' };
   if (!membershipSnap.exists()) {
+    console.log('[setActiveProject] Mitgliedschaft existiert nicht, erstelle');
     await setDoc(doc(db, 'projects', projectId, 'members', currentUser.uid), {
       role: currentUser.uid === data.ownerId ? 'owner' : 'editor',
       email: currentUser.email ?? '',
@@ -525,12 +571,16 @@ async function setActiveProject(projectId) {
     }, { merge: true });
   }
 
+  console.log('[setActiveProject] Starte Subscriptions...');
   subscribeToProject(projectId);
   subscribeToMembers(projectId);
   subscribeToPendingInvites(projectId);
 
   loadIncomingInvitesVisibility();
   bindFieldListeners();
+  
+  console.log('[setActiveProject] ERFOLG - activeProjectId:', activeProjectId);
+  console.log('[setActiveProject] projectDocRef:', projectDocRef?.id);
 }
 
 function clearProjectSubscriptions() {
@@ -648,48 +698,117 @@ function watchIncomingInvites(user) {
 }
 
 function bindFieldListeners() {
+  console.log('[bindFieldListeners] Starte Feld-Listener Setup');
+  console.log('[bindFieldListeners] fieldIds:', fieldIds);
+  console.log('[bindFieldListeners] currentUser:', currentUser?.uid);
+  console.log('[bindFieldListeners] activeProjectId:', activeProjectId);
+  console.log('[bindFieldListeners] projectDocRef:', projectDocRef);
+  
   fieldIds.forEach((id) => {
     const element = document.getElementById(id);
-    if (!element || element.dataset.bound === 'true') return;
+    if (!element) {
+      console.warn(`[bindFieldListeners] Element mit ID "${id}" nicht gefunden!`);
+      return;
+    }
+    
+    if (element.dataset.bound === 'true') {
+      console.log(`[bindFieldListeners] Element "${id}" bereits gebunden, überspringe`);
+      return;
+    }
 
     element.dataset.bound = 'true';
+    console.log(`[bindFieldListeners] Binde Listener für "${id}"`);
+    
     element.addEventListener('input', () => {
+      console.log(`[bindFieldListeners] Input Event für "${id}"`, element.value.substring(0, 50));
       autosize(element);
-      if (isApplyingRemoteData) return;
+      
+      if (isApplyingRemoteData) {
+        console.log(`[bindFieldListeners] Ignoriere Input für "${id}" - Remote-Daten werden angewendet`);
+        return;
+      }
 
-      if (currentUser && projectDocRef) {
+      if (currentUser && projectDocRef && activeProjectId) {
+        console.log(`[bindFieldListeners] Speichere Feld "${id}" in Firestore`);
         pendingRemoteUpdates[id] = element.value;
         throttledFirestoreSave();
       } else {
+        console.log(`[bindFieldListeners] Speichere Feld "${id}" lokal (kein User/Project)`);
         throttledLocalSave();
       }
     });
   });
+  
+  console.log('[bindFieldListeners] Setup abgeschlossen');
 }
 
 async function persistRemoteUpdates() {
-  if (!currentUser || !projectDocRef) return;
+  console.log('[persistRemoteUpdates] Start');
+  console.log('[persistRemoteUpdates] currentUser:', currentUser?.uid);
+  console.log('[persistRemoteUpdates] activeProjectId:', activeProjectId);
+  console.log('[persistRemoteUpdates] projectDocRef:', projectDocRef);
+  console.log('[persistRemoteUpdates] pendingRemoteUpdates:', Object.keys(pendingRemoteUpdates));
+  
+  if (!currentUser) {
+    console.error('[persistRemoteUpdates] KEIN USER - Speichern abgebrochen');
+    return;
+  }
+  
+  if (!activeProjectId) {
+    console.error('[persistRemoteUpdates] KEIN activeProjectId - Speichern abgebrochen');
+    return;
+  }
+  
+  if (!projectDocRef) {
+    console.error('[persistRemoteUpdates] KEIN projectDocRef - Speichern abgebrochen');
+    return;
+  }
+  
   const updates = {};
   const fields = Object.keys(pendingRemoteUpdates);
 
-  if (!fields.length) return;
+  if (!fields.length) {
+    console.log('[persistRemoteUpdates] Keine Updates vorhanden');
+    return;
+  }
 
   fields.forEach((id) => {
     updates[`fields.${id}`] = pendingRemoteUpdates[id];
+    console.log(`[persistRemoteUpdates] Feld "${id}":`, pendingRemoteUpdates[id].substring(0, 50));
   });
+  
+  // Kopie für Logging, dann leeren
+  const fieldsToSave = [...fields];
   pendingRemoteUpdates = {};
 
   try {
+    console.log('[persistRemoteUpdates] Starte Firestore updateDoc');
     showSaveStatus('saving');
+    
+    // Erstelle projectDocRef falls nicht vorhanden
+    if (!projectDocRef) {
+      projectDocRef = doc(db, 'projects', activeProjectId);
+      console.log('[persistRemoteUpdates] projectDocRef neu erstellt:', projectDocRef.id);
+    }
+    
     await updateDoc(projectDocRef, {
       ...updates,
       updatedAt: serverTimestamp(),
       lastEditor: currentUser.uid,
     });
+    
+    console.log('[persistRemoteUpdates] ERFOLG - Felder gespeichert:', fieldsToSave);
     showSaveStatus('saved');
   } catch (error) {
-    console.error('Fehler beim Speichern in Firestore:', error);
+    console.error('[persistRemoteUpdates] FEHLER beim Speichern in Firestore:', error);
+    console.error('[persistRemoteUpdates] Error Details:', {
+      code: error.code,
+      message: error.message,
+      activeProjectId,
+      projectDocRef: projectDocRef?.id
+    });
     showSaveStatus(); // Reset status on error
+    showToast('Fehler beim Speichern: ' + error.message, 'error');
   }
 }
 
@@ -1437,21 +1556,53 @@ Antworte im Markdown-Format:
 }
 
 async function saveAnalysis(sectionName, inputText, outputText) {
-  if (!currentUser || !activeProjectId) {
-    return; // Nicht speichern, wenn kein User oder Projekt aktiv
+  console.log('[saveAnalysis] Start für Sektion:', sectionName);
+  console.log('[saveAnalysis] currentUser:', currentUser?.uid);
+  console.log('[saveAnalysis] activeProjectId:', activeProjectId);
+  
+  if (!currentUser) {
+    const errorMsg = 'Kein User eingeloggt - Analyse kann nicht gespeichert werden';
+    console.error('[saveAnalysis]', errorMsg);
+    showToast(errorMsg, 'error');
+    throw new Error(errorMsg);
+  }
+  
+  if (!activeProjectId) {
+    const errorMsg = 'Kein aktives Projekt - Analyse kann nicht gespeichert werden';
+    console.error('[saveAnalysis]', errorMsg);
+    showToast(errorMsg, 'error');
+    throw new Error(errorMsg);
   }
 
   try {
-    await addDoc(collection(db, 'projects', activeProjectId, 'analyses'), {
+    const analysesRef = collection(db, 'projects', activeProjectId, 'analyses');
+    console.log('[saveAnalysis] Speichere in Collection:', analysesRef.path);
+    
+    const analysisData = {
       section: sectionName,
       inputText: inputText,
       outputText: outputText,
       createdAt: serverTimestamp(),
       createdBy: currentUser.uid,
       createdByEmail: currentUser.email ?? '',
+    };
+    
+    console.log('[saveAnalysis] Daten:', {
+      section: sectionName,
+      inputLength: inputText.length,
+      outputLength: outputText.length
     });
+    
+    const docRef = await addDoc(analysesRef, analysisData);
+    console.log('[saveAnalysis] ERFOLG - Analyse gespeichert mit ID:', docRef.id);
   } catch (error) {
-    console.error('Fehler beim Speichern der Analyse:', error);
+    console.error('[saveAnalysis] FEHLER beim Speichern:', error);
+    console.error('[saveAnalysis] Error Details:', {
+      code: error.code,
+      message: error.message,
+      activeProjectId
+    });
+    showToast('Fehler beim Speichern der Analyse: ' + error.message, 'error');
     throw error;
   }
 }
@@ -2506,14 +2657,25 @@ async function exportToPDF() {
 // ============================================
 
 async function finishProject() {
-  if (!currentUser || !activeProjectId) {
+  console.log('[finishProject] START');
+  console.log('[finishProject] currentUser:', currentUser?.uid);
+  console.log('[finishProject] activeProjectId:', activeProjectId);
+  
+  if (!currentUser) {
+    console.error('[finishProject] KEIN USER');
     showToast('Bitte melde dich an, um ein Projekt abzuschließen.', 'warning');
+    return;
+  }
+  
+  if (!activeProjectId) {
+    console.error('[finishProject] KEIN activeProjectId');
+    showToast('Kein aktives Projekt gefunden.', 'error');
     return;
   }
 
   const btn = document.getElementById('btn-finish-project');
   if (!btn) {
-    console.error('Finish-Button nicht gefunden');
+    console.error('[finishProject] Finish-Button nicht gefunden');
     return;
   }
 
@@ -2521,15 +2683,21 @@ async function finishProject() {
   const originalDisabled = btn.disabled;
   
   try {
+    console.log('[finishProject] Setze Button auf "Speichere..."');
     btn.disabled = true;
     btn.innerHTML = 'Speichere...';
 
     // 1. Status in Firestore auf 'completed' setzen
-    await updateDoc(doc(db, 'projects', activeProjectId), {
+    const projectRef = doc(db, 'projects', activeProjectId);
+    console.log('[finishProject] Speichere Status "completed" in:', projectRef.path);
+    
+    await updateDoc(projectRef, {
       status: 'completed',
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    
+    console.log('[finishProject] ERFOLG - Status gespeichert');
 
     // 2. Feedback (Feier)
     if (typeof confetti !== 'undefined') {
@@ -2542,23 +2710,19 @@ async function finishProject() {
     showToast('Projekt erfolgreich abgeschlossen!', 'success');
 
     // 3. Reset für neues Projekt (nach kurzer Verzögerung)
-    setTimeout(async () => {
-      // UI Reset
-      document.querySelectorAll('input, textarea').forEach(el => {
-        el.value = '';
-        autosize(el);
-      });
-      
-      // Zurück zu Schritt 1
-      jumpToStep(1);
-      
-      // Reload erzwingen, um sauber neu zu starten
-      // (Das ist am sichersten, damit initializeForUser ein neues Projekt erstellt)
+    console.log('[finishProject] Starte Reload in 2.5 Sekunden...');
+    setTimeout(() => {
+      console.log('[finishProject] Führe window.location.reload() aus');
       window.location.reload(); 
     }, 2500);
 
   } catch (error) {
-    console.error('Fehler beim Abschließen:', error);
+    console.error('[finishProject] FEHLER beim Abschließen:', error);
+    console.error('[finishProject] Error Details:', {
+      code: error.code,
+      message: error.message,
+      activeProjectId
+    });
     showToast('Fehler beim Abschließen: ' + error.message, 'error');
     btn.disabled = originalDisabled;
     btn.innerHTML = originalText;
