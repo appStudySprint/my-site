@@ -2288,81 +2288,40 @@ async function exportToPDF() {
       </div>
     `;
 
-    // 6. Füge Ghost-Element zum Body hinzu (zuerst unsichtbar)
-    ghostElement.style.visibility = 'hidden';
-    ghostElement.style.opacity = '0';
-    ghostElement.style.pointerEvents = 'none'; // WICHTIG: Blockiert keine Klicks
+    // 6. Füge Ghost-Element zum Body hinzu (sichtbar für Druck-Dialog)
+    // WICHTIG: Wir verwenden window.print() statt html2pdf - das ist stabiler und blockiert nicht
     document.body.appendChild(ghostElement);
 
     // 7. Kurz warten, damit Layout gerendert wird
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
 
-    // 8. Prüfe ob html2pdf verfügbar ist
-    if (typeof html2pdf === 'undefined') {
-      throw new Error('html2pdf library nicht geladen. Bitte Seite neu laden.');
-    }
-
-    // 9. Button SOFORT wieder aktivieren (bevor PDF-Generierung startet)
-    // Das verhindert, dass die App "gefroren" wirkt
+    // 8. Button SOFORT wieder aktivieren (bevor Druck-Dialog öffnet)
     btn.disabled = false;
     btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
     if (btnSpinner) btnSpinner.classList.add('hidden');
 
-    // 10. Mache Element kurz sichtbar für html2canvas (aber immer noch off-screen)
-    // html2canvas braucht ein sichtbares Element, aber wir halten es weit weg
-    ghostElement.style.visibility = 'visible';
-    ghostElement.style.opacity = '1';
+    // 9. Öffne Browser-Druck-Dialog (sehr stabil, blockiert UI nicht)
+    // window.print() verwendet automatisch die @media print Styles
+    showToast('Öffne Druck-Dialog... Wähle "Als PDF speichern"', 'success');
     
-    // 11. PDF generieren (asynchron - blockiert UI nicht)
-    const filename = `Investment-Memo-${projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.pdf`;
+    // Kurz warten, damit Toast sichtbar ist
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Druck-Dialog öffnen (blockiert nicht - Browser öffnet Dialog asynchron)
+    window.print();
 
-    // Timeout-Fallback: Wenn PDF-Generierung zu lange dauert, zeige Warnung
-    const timeoutId = setTimeout(() => {
-      showToast('PDF-Generierung dauert länger als erwartet...', 'warning');
-    }, 5000);
-
-    try {
-      // PDF-Generierung
-      await html2pdf().set({
-        margin: [15, 15, 15, 15],
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          logging: false,
-          letterRendering: true,
-          windowWidth: 794, // A4 width in pixels at 96dpi
-          windowHeight: 1123 // A4 height in pixels at 96dpi
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      }).from(ghostElement).save();
-
-      clearTimeout(timeoutId);
-    } catch (pdfError) {
-      clearTimeout(timeoutId);
-      throw pdfError;
-    } finally {
-      // Element sofort wieder unsichtbar machen
-      ghostElement.style.visibility = 'hidden';
-      ghostElement.style.opacity = '0';
-    }
-
-    // 10. Erfolg-Feedback
-    showToast('PDF erfolgreich erstellt!', 'success');
+    // Erfolg-Feedback
+    showToast('Druck-Dialog geöffnet. Wähle "Als PDF speichern".', 'success');
     
     // 🎉 Confetti!
     if (typeof confetti !== 'undefined') {
-      confetti({
-        particleCount: 150,
-        spread: 90,
-        origin: { y: 0.6 }
-      });
+      setTimeout(() => {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }, 500);
     }
 
   } catch (error) {

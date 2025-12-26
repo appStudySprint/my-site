@@ -326,3 +326,37 @@ textarea:focus {
   margin-top: 0.75rem; /* mt-3 */
   margin-bottom: 0.25rem; /* mb-1 */
 }
+
+/* Print Styles für PDF-Export */
+@media print {
+  /* Verstecke alles außer dem PDF-Ghost-Element */
+  body > *:not(#pdf-ghost-element) {
+    display: none !important;
+  }
+  
+  /* Zeige nur das PDF-Element */
+  #pdf-ghost-element {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20mm !important;
+    background: white !important;
+    color: black !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1 !important;
+  }
+  
+  /* Verhindere Seitenumbrüche in wichtigen Bereichen */
+  #pdf-ghost-element > div {
+    page-break-inside: avoid;
+  }
+  
+  /* Keine Margins beim Drucken */
+  @page {
+    margin: 0;
+  }
+}
