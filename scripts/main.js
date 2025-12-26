@@ -151,12 +151,22 @@ function cleanAndParseJSON(text) {
 // ENDE ZENTRALE API-KOMMUNIKATION
 // ============================================
 
+// Alle Input/Textarea IDs, die gespeichert werden müssen
 const fieldIds = [
-  'problem', 'solution', 'pitch',
-  'persona_full',
-  'mvp_features', 'mvp_anti_features',
-  'validation_method', 'validation_success',
-  'resources_stack', 'resources_budget', 'resources_time',
+  'problem',           // Step 1: Problem
+  'solution',          // Step 1: Lösung
+  'pitch',             // Step 1: Elevator Pitch
+  'persona_full',      // Step 2: Persona (vollständig)
+  'mvp_features',      // Step 3: MVP Features
+  'mvp_anti_features', // Step 3: Anti-Features
+  'validation_method', // Step 4: Validierungsmethode
+  'validation_success', // Step 4: Erfolgsmetrik
+  'calc_price',        // Step 5: Verkaufspreis
+  'calc_var_costs',    // Step 5: Variable Kosten
+  'calc_fixed_costs',  // Step 5: Fixkosten
+  'resources_stack',   // Step 6: Tech Stack
+  'resources_budget',  // Step 6: Budget
+  'resources_time',    // Step 6: Zeit
 ];
 
 const LOCAL_STORAGE_PREFIX = 'projektDashboardData';
