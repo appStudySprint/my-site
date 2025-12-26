@@ -2065,6 +2065,10 @@ function calculateBreakEven() {
 // PDF EXPORT FUNCTION (Simplified & Fixed)
 // ============================================
 
+// ============================================
+// PDF EXPORT FUNCTION (Robust & Safe)
+// ============================================
+
 async function exportToPDF() {
   const exportButton = document.getElementById('btn-export-pdf');
   const exportText = document.getElementById('text-export-pdf');
@@ -2080,8 +2084,11 @@ async function exportToPDF() {
   exportText.textContent = 'Generiere PDF...';
   if (exportSpinner) exportSpinner.classList.remove('hidden');
 
+  // Variable für Cleanup (muss außerhalb des try-Blocks sein, damit finally darauf zugreifen kann)
+  let tempDiv = null;
+
   try {
-    // Sammle alle Daten
+    // Sammle alle Daten mit Optional Chaining (verhindert Crashes bei fehlenden Feldern)
     const projectName = document.getElementById('activeProjectName')?.textContent || 'Startup-Projekt';
     const problem = document.getElementById('problem')?.value || '-';
     const solution = document.getElementById('solution')?.value || '-';
@@ -2098,7 +2105,7 @@ async function exportToPDF() {
       day: 'numeric'
     });
 
-    // Erstelle ein HTML-Template direkt im Code
+    // Erstelle HTML-Template
     const pdfContent = `
       <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; background: white; color: black;">
         <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #3b82f6; padding-bottom: 20px;">
@@ -2148,14 +2155,16 @@ async function exportToPDF() {
       </div>
     `;
 
-    // Erstelle temporäres Element für PDF
-    const tempDiv = document.createElement('div');
+    // Erstelle temporäres Element für PDF (OFF-SCREEN)
+    tempDiv = document.createElement('div');
     tempDiv.innerHTML = pdfContent;
+    // WICHTIG: Off-screen positionieren, damit es keine Klicks blockiert
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px';
     tempDiv.style.top = '0';
     tempDiv.style.width = '210mm';
     tempDiv.style.background = 'white';
+    tempDiv.style.zIndex = '-1'; // Noch sicherer: Hinter allem
     document.body.appendChild(tempDiv);
 
     // Warte kurz, damit das Layout gerendert wird
@@ -2177,9 +2186,7 @@ async function exportToPDF() {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     }).from(tempDiv).save();
 
-    // Cleanup
-    document.body.removeChild(tempDiv);
-
+    // Erfolg-Feedback
     showToast('PDF erfolgreich erstellt!', 'success');
     
     // 🎉 Confetti beim PDF-Export!
@@ -2195,9 +2202,18 @@ async function exportToPDF() {
     console.error('Fehler beim PDF-Export:', error);
     showToast('Fehler beim Erstellen des PDFs: ' + error.message, 'error');
   } finally {
-    // UI: Loading State zurücksetzen
+    // KRITISCH: Cleanup GARANTIERT - verhindert Zombie-Overlay
+    if (tempDiv && document.body.contains(tempDiv)) {
+      try {
+        document.body.removeChild(tempDiv);
+      } catch (cleanupError) {
+        console.error('Fehler beim Cleanup des PDF-Temp-Elements:', cleanupError);
+      }
+    }
+    
+    // UI: Loading State zurücksetzen (GARANTIERT)
     exportButton.disabled = false;
     exportText.textContent = '📄 Als Investment Memo exportieren (PDF)';
-    exportSpinner.classList.add('hidden');
+    if (exportSpinner) exportSpinner.classList.add('hidden');
   }
-};
+}
