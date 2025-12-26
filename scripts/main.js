@@ -1800,6 +1800,36 @@ function setupWizard() {
       }
     });
   });
+
+  // Stepper-Navigation (klickbare Step-Indikatoren)
+  setupStepperNavigation();
+}
+
+// ============================================
+// STEPPER NAVIGATION (Klickbare Step-Kreise)
+// ============================================
+
+function setupStepperNavigation() {
+  for (let step = 1; step <= totalSteps; step++) {
+    const indicator = document.querySelector(`.step-indicator[data-step="${step}"]`);
+    if (indicator) {
+      indicator.addEventListener('click', () => {
+        jumpToStep(step);
+      });
+    }
+  }
+}
+
+function jumpToStep(step) {
+  if (step < 1 || step > totalSteps) {
+    return;
+  }
+
+  currentStep = step;
+  showStep(step);
+  
+  // Scroll nach oben für bessere UX
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function showStep(stepNumber) {
@@ -2155,36 +2185,73 @@ async function exportToPDF() {
       </div>
     `;
 
-    // Erstelle temporäres Element für PDF (OFF-SCREEN)
+    // Erstelle Vollbild-Overlay für PDF (html2canvas braucht sichtbares Element)
     tempDiv = document.createElement('div');
-    tempDiv.innerHTML = pdfContent;
-    // WICHTIG: Off-screen positionieren, damit es keine Klicks blockiert
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px';
+    tempDiv.id = 'pdf-export-overlay';
+    tempDiv.innerHTML = `
+      <div style="position: fixed; top: 0; right: 0; padding: 20px; z-index: 10000;">
+        <button id="pdf-cancel-btn" style="background: #ef4444; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          ✕ Abbrechen
+        </button>
+      </div>
+      ${pdfContent}
+    `;
+    
+    // Vollbild-Overlay Styling (sichtbar für html2canvas)
+    tempDiv.style.position = 'fixed';
     tempDiv.style.top = '0';
-    tempDiv.style.width = '210mm';
+    tempDiv.style.left = '0';
+    tempDiv.style.width = '100%';
+    tempDiv.style.height = '100%';
+    tempDiv.style.zIndex = '9999';
     tempDiv.style.background = 'white';
-    tempDiv.style.zIndex = '-1'; // Noch sicherer: Hinter allem
+    tempDiv.style.overflowY = 'scroll';
     document.body.appendChild(tempDiv);
 
+    // Abbrechen-Button Event Listener
+    const cancelBtn = document.getElementById('pdf-cancel-btn');
+    const cancelHandler = () => {
+      if (tempDiv && document.body.contains(tempDiv)) {
+        document.body.removeChild(tempDiv);
+      }
+      exportButton.disabled = false;
+      exportText.textContent = '📄 Als Investment Memo exportieren (PDF)';
+      if (exportSpinner) exportSpinner.classList.add('hidden');
+      showToast('PDF-Export abgebrochen', 'warning');
+    };
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', cancelHandler);
+    }
+
     // Warte kurz, damit das Layout gerendert wird
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     // Prüfe ob html2pdf verfügbar ist
     if (typeof html2pdf === 'undefined') {
-      throw new Error('html2pdf library ist nicht geladen. Bitte Seite neu laden.');
+      // Fallback: Browser-Druck-Dialog
+      showToast('html2pdf nicht verfügbar. Öffne Druck-Dialog...', 'warning');
+      window.print();
+      return;
     }
 
     // PDF generieren
     const filename = `Investment-Memo-${projectName.replace(/\s+/g, '-')}.pdf`;
 
-    await html2pdf().set({
-      margin: 15,
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }).from(tempDiv).save();
+    try {
+      await html2pdf().set({
+        margin: 15,
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      }).from(tempDiv).save();
+    } catch (pdfError) {
+      // Fallback: Browser-Druck-Dialog wenn html2pdf fehlschlägt
+      console.warn('html2pdf fehlgeschlagen, verwende Browser-Druck:', pdfError);
+      showToast('PDF-Library-Fehler. Öffne Druck-Dialog als Fallback...', 'warning');
+      window.print();
+      return;
+    }
 
     // Erfolg-Feedback
     showToast('PDF erfolgreich erstellt!', 'success');
