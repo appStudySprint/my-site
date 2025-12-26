@@ -2099,141 +2099,227 @@ function calculateBreakEven() {
 // PDF EXPORT FUNCTION (Robust & Safe)
 // ============================================
 
+// ============================================
+// PDF EXPORT - "GHOST-WRITER" METHODE
+// Programmatisches Zusammenbauen des PDFs
+// ============================================
+
 async function exportToPDF() {
-  const exportButton = document.getElementById('btn-export-pdf');
-  const exportText = document.getElementById('text-export-pdf');
-  const exportSpinner = document.getElementById('spinner-export-pdf');
+  const btn = document.getElementById('btn-export-pdf');
+  const btnText = document.getElementById('text-export-pdf');
+  const btnSpinner = document.getElementById('spinner-export-pdf');
   
-  if (!exportButton || !exportText) {
+  if (!btn || !btnText) {
     console.error('Export-Button nicht gefunden');
     return;
   }
 
-  // UI: Loading State
-  exportButton.disabled = true;
-  exportText.textContent = 'Generiere PDF...';
-  if (exportSpinner) exportSpinner.classList.remove('hidden');
+  // Hilfsfunktionen zum sicheren Lesen von Werten
+  const getVal = (id) => {
+    const el = document.getElementById(id);
+    return el?.value?.trim() || '-(Keine Eingabe)-';
+  };
+  
+  const getText = (id) => {
+    const el = document.getElementById(id);
+    return el?.innerText?.trim() || el?.textContent?.trim() || '-(Nicht verfügbar)-';
+  };
+  
+  const getHTML = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.classList.contains('hidden')) {
+      return '<p style="color: #9ca3af; font-style: italic;">Keine Analyse vorhanden.</p>';
+    }
+    return el.innerHTML || '<p>Keine Analyse vorhanden.</p>';
+  };
 
-  // Variable für Cleanup (muss außerhalb des try-Blocks sein, damit finally darauf zugreifen kann)
-  let tempDiv = null;
+  // Variable für Cleanup (außerhalb try-Block für finally-Zugriff)
+  let ghostElement = null;
 
   try {
-    // Sammle alle Daten mit Optional Chaining (verhindert Crashes bei fehlenden Feldern)
-    const projectName = document.getElementById('activeProjectName')?.textContent || 'Startup-Projekt';
-    const problem = document.getElementById('problem')?.value || '-';
-    const solution = document.getElementById('solution')?.value || '-';
-    const pitch = document.getElementById('pitch')?.value || '-';
-    const persona = document.getElementById('persona_full')?.value || '-';
-    const mvpFeatures = document.getElementById('mvp_features')?.value || '-';
-    const mvpAntiFeatures = document.getElementById('mvp_anti_features')?.value || '-';
-    const validationMethod = document.getElementById('validation_method')?.value || '-';
-    const validationSuccess = document.getElementById('validation_success')?.value || '-';
-    
-    const today = new Date().toLocaleDateString('de-DE', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    // 1. UI Feedback
+    btn.disabled = true;
+    btnText.textContent = 'Erstelle Memo...';
+    if (btnSpinner) btnSpinner.classList.remove('hidden');
+    showToast('Generiere Investment Memo...', 'success');
+
+    // 2. Sammle ALLE Daten (auch aus nicht sichtbaren Steps)
+    const projectName = getText('activeProjectName') || 'Startup-Projekt';
+    const date = new Date().toLocaleDateString('de-DE', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
     });
 
-    // Erstelle HTML-Template
-    const pdfContent = `
-      <div style="font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; background: white; color: black;">
-        <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #3b82f6; padding-bottom: 20px;">
-          <h1 style="font-size: 32px; margin: 0 0 10px 0; color: #1f2937;">Investment Memo</h1>
-          <h2 style="font-size: 24px; margin: 0; color: #3b82f6;">${escapeHtml(projectName)}</h2>
-          <p style="color: #6b7280; margin-top: 10px;">${today}</p>
-        </div>
+    // 3. Erstelle Ghost-Element (Off-Screen Container)
+    ghostElement = document.createElement('div');
+    Object.assign(ghostElement.style, {
+      width: '210mm',
+      minHeight: '297mm',
+      padding: '20mm',
+      backgroundColor: 'white',
+      color: '#1a202c',
+      fontFamily: 'Helvetica, Arial, sans-serif',
+      fontSize: '12px',
+      lineHeight: '1.6',
+      position: 'fixed',
+      left: '-10000px', // Unsichtbar für User - blockiert niemals UI
+      top: '0'
+    });
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">01 | Das Problem</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(problem)}</p>
-        </div>
+    // 4. Berechne Break-Even (falls vorhanden)
+    const price = parseFloat(document.getElementById('calc_price')?.value || 0);
+    const varCosts = parseFloat(document.getElementById('calc_var_costs')?.value || 0);
+    const fixedCosts = parseFloat(document.getElementById('calc_fixed_costs')?.value || 0);
+    const contributionMargin = price - varCosts;
+    const breakEven = contributionMargin > 0 && fixedCosts > 0 
+      ? Math.ceil(fixedCosts / contributionMargin).toLocaleString('de-DE')
+      : '-';
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">02 | Die Lösung</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(solution)}</p>
-        </div>
+    // 5. Erstelle HTML-Content (Professionelles Investment-Memo Layout)
+    ghostElement.innerHTML = `
+      <div style="border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;">
+        <h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #111827;">INVESTMENT MEMO</h1>
+        <p style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">
+          Projekt: <strong>${escapeHtml(projectName)}</strong> • Datum: ${date}
+        </p>
+      </div>
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">03 | Elevator Pitch</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(pitch)}</p>
+      <!-- EXECUTIVE SUMMARY -->
+      <div style="margin-bottom: 30px;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          1. Executive Summary
+        </h2>
+        <div style="margin-top: 10px;">
+          <strong style="display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Das Problem</strong>
+          <p style="margin: 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('problem'))}</p>
         </div>
+        <div style="margin-top: 15px;">
+          <strong style="display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Die Lösung</strong>
+          <p style="margin: 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('solution'))}</p>
+        </div>
+        ${getVal('pitch') !== '-(Keine Eingabe)-' ? `
+        <div style="margin-top: 15px;">
+          <strong style="display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Elevator Pitch</strong>
+          <p style="margin: 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('pitch'))}</p>
+        </div>
+        ` : ''}
+      </div>
 
-        <div style="margin-bottom: 30px; page-break-before: always;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">04 | Zielgruppen-Persona</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(persona)}</p>
-        </div>
+      <!-- TARGET AUDIENCE -->
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          2. Zielgruppe & Psychologie
+        </h2>
+        <p style="margin-top: 10px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('persona_full'))}</p>
+      </div>
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">05 | MVP Features</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(mvpFeatures)}</p>
-          <h4 style="color: #d97706; margin-top: 20px;">Anti-Features (Was es NICHT ist)</h4>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(mvpAntiFeatures)}</p>
+      <!-- STRATEGY & MVP -->
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          3. Strategie & MVP
+        </h2>
+        <div style="margin-top: 10px;">
+          <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <strong style="display: block; color: #059669; margin-bottom: 8px; font-size: 13px;">CORE FEATURES</strong>
+            <p style="margin: 0; font-size: 12px; white-space: pre-wrap;">${escapeHtml(getVal('mvp_features'))}</p>
+          </div>
+          <div style="background: #fff1f2; padding: 15px; border-radius: 8px;">
+            <strong style="display: block; color: #dc2626; margin-bottom: 8px; font-size: 13px;">OUT OF SCOPE (Anti-Features)</strong>
+            <p style="margin: 0; font-size: 12px; white-space: pre-wrap;">${escapeHtml(getVal('mvp_anti_features'))}</p>
+          </div>
         </div>
+      </div>
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">06 | Validierung</h3>
-          <p style="margin-bottom: 10px;"><strong>Testmethode:</strong></p>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(validationMethod)}</p>
-          <p style="margin-top: 15px; margin-bottom: 10px;"><strong>Erfolgsmetrik:</strong></p>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(validationSuccess)}</p>
+      <!-- VALIDIERUNG -->
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          4. Markt-Validierung
+        </h2>
+        <div style="margin-top: 10px;">
+          <strong style="display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Testmethode</strong>
+          <p style="margin: 0 0 15px 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('validation_method'))}</p>
+          <strong style="display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Erfolgsmetrik</strong>
+          <p style="margin: 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('validation_success'))}</p>
         </div>
+      </div>
 
-        <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>Erstellt mit VentureValidator | ${today}</p>
+      <!-- FINANCE & SCORING -->
+      ${(price > 0 || fixedCosts > 0) ? `
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          5. Finanzplan
+        </h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 10px;">
+          <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
+            <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Verkaufspreis</div>
+            <div style="font-size: 18px; font-weight: bold; color: #059669;">${price.toFixed(2)}€</div>
+          </div>
+          <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
+            <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Fixkosten/Monat</div>
+            <div style="font-size: 18px; font-weight: bold; color: #dc2626;">${fixedCosts.toFixed(2)}€</div>
+          </div>
+          <div style="background: #eff6ff; padding: 12px; border-radius: 6px; border: 2px solid #3b82f6;">
+            <div style="font-size: 10px; color: #3b82f6; text-transform: uppercase; margin-bottom: 5px;">Break-Even</div>
+            <div style="font-size: 18px; font-weight: bold; color: #3b82f6;">${breakEven}</div>
+            <div style="font-size: 10px; color: #6b7280; margin-top: 3px;">Einheiten</div>
+          </div>
         </div>
+      </div>
+      ` : ''}
+
+      <!-- VC VERDICT (KI-Analyse) -->
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+          6. Risiko-Analyse (AI Vetted)
+        </h2>
+        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; margin-top: 10px; font-size: 12px;">
+          ${getHTML('response-hypothese')}
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="margin-top: 40px; border-top: 2px solid #e5e7eb; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 10px;">
+        <p style="margin: 0;">Erstellt mit VentureValidator | ${date}</p>
       </div>
     `;
 
-    // Erstelle temporäres Element für PDF (OFF-SCREEN - blockiert niemals die UI)
-    tempDiv = document.createElement('div');
-    tempDiv.innerHTML = pdfContent;
-    
-    // WICHTIG: Off-Screen positionieren - weit außerhalb des Bildschirms
-    // html2pdf kann es rendern, aber es blockiert niemals Maus-Klicks
-    tempDiv.style.position = 'fixed';
-    tempDiv.style.left = '-10000px';
-    tempDiv.style.top = '0';
-    tempDiv.style.width = '210mm';
-    tempDiv.style.background = 'white';
-    tempDiv.style.color = 'black';
-    // KEIN z-index - damit es niemals im Vordergrund ist
-    document.body.appendChild(tempDiv);
+    // 6. Füge Ghost-Element zum Body hinzu (Off-Screen)
+    document.body.appendChild(ghostElement);
 
-    // Warte kurz, damit das Layout gerendert wird
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 7. Kurz warten, damit Layout gerendert wird
+    await new Promise(resolve => setTimeout(resolve, 200));
 
-    // Prüfe ob html2pdf verfügbar ist
+    // 8. Prüfe ob html2pdf verfügbar ist
     if (typeof html2pdf === 'undefined') {
-      // Fallback: Browser-Druck-Dialog
-      showToast('html2pdf nicht verfügbar. Öffne Druck-Dialog...', 'warning');
-      window.print();
-      return;
+      throw new Error('html2pdf library nicht geladen. Bitte Seite neu laden.');
     }
 
-    // PDF generieren
-    const filename = `Investment-Memo-${projectName.replace(/\s+/g, '-')}.pdf`;
+    // 9. PDF generieren
+    const filename = `Investment-Memo-${projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.pdf`;
 
-    try {
-      await html2pdf().set({
-        margin: 15,
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      }).from(tempDiv).save();
-    } catch (pdfError) {
-      // Fallback: Browser-Druck-Dialog wenn html2pdf fehlschlägt
-      console.warn('html2pdf fehlgeschlagen, verwende Browser-Druck:', pdfError);
-      showToast('PDF-Library-Fehler. Öffne Druck-Dialog als Fallback...', 'warning');
-      window.print();
-      return;
-    }
+    await html2pdf().set({
+      margin: [15, 15, 15, 15],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        letterRendering: true
+      },
+      jsPDF: { 
+        unit: 'mm', 
+        format: 'a4', 
+        orientation: 'portrait' 
+      },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(ghostElement).save();
 
-    // Erfolg-Feedback
+    // 10. Erfolg-Feedback
     showToast('PDF erfolgreich erstellt!', 'success');
     
-    // 🎉 Confetti beim PDF-Export!
+    // 🎉 Confetti!
     if (typeof confetti !== 'undefined') {
       confetti({
         particleCount: 150,
@@ -2244,20 +2330,20 @@ async function exportToPDF() {
 
   } catch (error) {
     console.error('Fehler beim PDF-Export:', error);
-    showToast('Fehler beim Erstellen des PDFs: ' + error.message, 'error');
+    showToast('Fehler: ' + error.message, 'error');
   } finally {
-    // KRITISCH: Cleanup GARANTIERT - verhindert Zombie-Overlay
-    if (tempDiv && document.body.contains(tempDiv)) {
+    // KRITISCH: Cleanup GARANTIERT - verhindert Zombie-Element
+    if (ghostElement && document.body.contains(ghostElement)) {
       try {
-        document.body.removeChild(tempDiv);
+        document.body.removeChild(ghostElement);
       } catch (cleanupError) {
-        console.error('Fehler beim Cleanup des PDF-Temp-Elements:', cleanupError);
+        console.error('Fehler beim Cleanup:', cleanupError);
       }
     }
     
-    // UI: Loading State zurücksetzen (GARANTIERT)
-    exportButton.disabled = false;
-    exportText.textContent = '📄 Als Investment Memo exportieren (PDF)';
-    if (exportSpinner) exportSpinner.classList.add('hidden');
+    // UI: Button sofort wieder aktivieren (GARANTIERT)
+    btn.disabled = false;
+    btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
+    if (btnSpinner) btnSpinner.classList.add('hidden');
   }
 }
