@@ -155,8 +155,8 @@ function cleanAndParseJSON(text) {
 
 const fieldIds = [
   'problem', 'solution', 'pitch',
-  'persona_name', 'persona_demographics', 'persona_pains', 'persona_gains', 'persona_full',
-  'mvp_core1', 'mvp_core2', 'mvp_core3', 'mvp_anti_features', 'mvp_features',
+  'persona_full',
+  'mvp_features', 'mvp_anti_features',
   'validation_method', 'validation_success',
   'resources_stack', 'resources_budget', 'resources_time',
 ];
@@ -231,7 +231,7 @@ function setupAuthUi() {
         await signInWithPopup(auth, googleProvider);
       } catch (error) {
         console.error('Fehler bei der Anmeldung:', error);
-        alert('Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
+        showToast('Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.', 'error');
       }
     });
   }
@@ -305,9 +305,9 @@ async function initializeForUser(user) {
     // SCHRITT 3: Fehler sichtbar machen
     console.error('Fehler bei der Initialisierung:', error);
     
-    // WICHTIG: Wir zeigen den Fehler jetzt direkt auf dem Bildschirm an via Alert.
+    // WICHTIG: Wir zeigen den Fehler jetzt direkt auf dem Bildschirm an via Toast.
     // So wissen wir SOFORT, ob es an den Regeln oder der Verbindung liegt.
-    alert("Ein Fehler ist aufgetreten:\n\n" + error.message + "\n\n(Bitte prüfen Sie die Firestore-Regeln oder den Account-Status)");
+    showToast("Initialisierungs-Fehler: " + error.message, 'error');
   }
 }
 async function ensureOwnerProject(user) {
@@ -633,7 +633,7 @@ function setupInviteForm() {
     event.preventDefault();
     if (!currentUser || !activeProjectId) return;
     if (currentMembership.role !== 'owner') {
-      alert('Nur Besitzer können Einladungen versenden.');
+      showToast('Nur Besitzer können Einladungen versenden.', 'warning');
       return;
     }
 
@@ -645,7 +645,7 @@ function setupInviteForm() {
     const role = roleSelect.value || 'editor';
 
     if (!invitedEmail) {
-      alert('Bitte eine gültige E-Mail-Adresse eingeben.');
+      showToast('Bitte eine gültige E-Mail-Adresse eingeben.', 'warning');
       return;
     }
 
@@ -672,8 +672,8 @@ function setupInviteForm() {
         await navigator.clipboard.writeText(inviteLink);
         showSavedFeedback('Einladung erstellt. Link wurde kopiert.');
       } catch (err) {
-        // Fallback: Zeige Link in Alert, falls Clipboard nicht funktioniert
-        alert(`Einladung erstellt!\n\nEinladungslink:\n${inviteLink}\n\n(Dieser Link wurde in die Zwischenablage kopiert, falls möglich)`);
+        // Fallback: Zeige Link via Toast
+        showToast('Einladung erstellt! Link wurde kopiert.', 'success');
       }
       
       // Zeige Link auch visuell an
@@ -683,7 +683,7 @@ function setupInviteForm() {
         <p class="text-xs text-gray-400 mb-1">Einladungslink:</p>
         <div class="flex items-center gap-2">
           <input type="text" readonly value="${inviteLink}" class="flex-1 bg-gray-800 text-gray-200 text-xs px-2 py-1 rounded border border-white/10" id="inviteLinkInput-${inviteId}" />
-          <button class="bg-brand-500 hover:bg-brand-600 text-white text-xs px-3 py-1 rounded" onclick="navigator.clipboard.writeText('${inviteLink}').then(() => alert('Link kopiert!'))">Kopieren</button>
+          <button class="bg-brand-500 hover:bg-brand-600 text-white text-xs px-3 py-1 rounded" onclick="navigator.clipboard.writeText('${inviteLink}').then(() => showToast('Link kopiert!', 'success'))">Kopieren</button>
         </div>
       `;
       const pendingContainer = document.getElementById('pendingInvites');
@@ -693,7 +693,7 @@ function setupInviteForm() {
       }
     } catch (error) {
       console.error('Fehler beim Erstellen der Einladung:', error);
-      alert('Die Einladung konnte nicht erstellt werden.');
+      showToast('Die Einladung konnte nicht erstellt werden.', 'error');
     }
   });
 }
@@ -769,7 +769,7 @@ function renderPendingInvites(invites) {
         await navigator.clipboard.writeText(link);
         showSavedFeedback('Link kopiert!');
       } catch {
-        alert('Konnte Link nicht kopieren.');
+        showToast('Konnte Link nicht kopieren.', 'error');
       }
     });
   });
@@ -787,7 +787,7 @@ function renderPendingInvites(invites) {
         showSavedFeedback('Einladung widerrufen.');
       } catch (error) {
         console.error('Fehler beim Widerrufen:', error);
-        alert('Einladung konnte nicht widerrufen werden.');
+        showToast('Einladung konnte nicht widerrufen werden.', 'error');
       }
     });
   });
@@ -874,7 +874,7 @@ async function acceptInvite(inviteId, invite) {
     localStorage.removeItem('pendingInviteToken');
   } catch (error) {
     console.error('Fehler beim Annehmen der Einladung:', error);
-    alert('Einladung konnte nicht angenommen werden.');
+    showToast('Einladung konnte nicht angenommen werden.', 'error');
   }
 }
 
@@ -966,18 +966,59 @@ function throttle(fn, wait) {
   };
 }
 
-const showSaved = (() => {
-  let t;
-  const el = document.createElement('div');
-  el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-gray-800/90 text-gray-100 px-4 py-2 shadow ring-1 ring-white/10';
-  el.textContent = 'Gespeichert';
-  return () => {
-    if (!document.body.contains(el)) document.body.appendChild(el);
-    el.style.opacity = '1';
-    clearTimeout(t);
-    t = setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 300ms'; }, 600);
-  };
-})();
+// ============================================
+// TOAST SYSTEM (Professional Feedback)
+// ============================================
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  const isError = type === 'error';
+  const isWarning = type === 'warning';
+  
+  const bgColor = isError ? 'bg-red-500/90' : isWarning ? 'bg-yellow-500/90' : 'bg-emerald-500/90';
+  const icon = isError ? '❌' : isWarning ? '⚠️' : '✓';
+  
+  toast.className = `fixed bottom-6 right-6 z-[100] ${bgColor} backdrop-blur-sm text-white px-6 py-4 rounded-lg shadow-2xl ring-1 ring-white/20 flex items-center gap-3 transform translate-x-[500px] transition-transform duration-300`;
+  toast.innerHTML = `
+    <span class="text-2xl">${icon}</span>
+    <span class="font-medium">${message}</span>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Slide in
+  setTimeout(() => {
+    toast.style.transform = 'translateX(0)';
+  }, 10);
+  
+  // Slide out and remove
+  setTimeout(() => {
+    toast.style.transform = 'translateX(500px)';
+    setTimeout(() => {
+      if (document.body.contains(toast)) {
+        document.body.removeChild(toast);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// ============================================
+// AUTO-SAVE FEEDBACK
+// ============================================
+
+function showSaveStatus() {
+  const saveStatus = document.getElementById('save-status');
+  if (!saveStatus) return;
+  
+  saveStatus.style.opacity = '1';
+  
+  setTimeout(() => {
+    saveStatus.style.opacity = '0';
+  }, 2000);
+}
+
+// Legacy showSaved for backward compatibility
+const showSaved = showSaveStatus;
 
 function showSavedFeedback(message) {
   const el = document.createElement('div');
@@ -1133,15 +1174,15 @@ Antworte im Markdown-Format:
       buttonId: 'analyze-persona',
       spinnerId: 'spinner-persona',
       responseId: 'response-persona',
-      prompt: 'Du bist ein Produktmanager. Finde Lücken in dieser Persona.',
-      fields: ['persona_name', 'persona_demographics', 'persona_pains', 'persona_gains']
+      prompt: 'Du bist ein Produktmanager. Finde Lücken in dieser Persona. Ist die Zielgruppe klar definiert? Sind die Pain Points spezifisch genug? Ist das gewünschte Ergebnis messbar?',
+      fields: ['persona_full']
     },
     'mvp': {
       buttonId: 'analyze-mvp',
       spinnerId: 'spinner-mvp',
       responseId: 'response-mvp',
-      prompt: 'Du bist ein Lean-Startup-Coach. Welches Feature ist unnötig?',
-      fields: ['mvp_core1', 'mvp_core2', 'mvp_core3', 'mvp_anti_features']
+      prompt: 'Du bist ein Lean-Startup-Coach. Welches Feature ist unnötig? Sind 3 Features wirklich das Minimum? Was kann noch weg?',
+      fields: ['mvp_features', 'mvp_anti_features']
     },
     'validierung': {
       buttonId: 'analyze-validierung',
@@ -1371,7 +1412,7 @@ async function analyzeCompetitors() {
   const solution = solutionField.value.trim();
 
   if (!problem && !solution) {
-    alert('Bitte fülle zuerst das Problem und die Lösung in Step 1 aus.');
+    showToast('Bitte fülle zuerst das Problem und die Lösung in Step 1 aus.', 'warning');
     return;
   }
 
@@ -1467,7 +1508,7 @@ Antworte NUR als valides JSON Array:
 
   } catch (error) {
     console.error('Fehler bei der Konkurrenz-Analyse:', error);
-    alert(`Fehler bei der Konkurrenz-Analyse: ${error.message}`);
+    showToast(`Fehler bei der Konkurrenz-Analyse: ${error.message}`, 'error');
   } finally {
     // UI: Loading-State zurücksetzen
     button.disabled = false;
@@ -1531,7 +1572,7 @@ async function calculateFinalScore() {
   // Prüfe, ob genug Daten vorhanden sind
   const hasMinimalData = allData.problem && allData.solution;
   if (!hasMinimalData) {
-    alert('Bitte fülle mindestens Problem und Lösung aus, bevor du das Scoring berechnest.');
+    showToast('Bitte fülle mindestens Problem und Lösung aus, bevor du das Scoring berechnest.', 'warning');
     return;
   }
 
@@ -1606,6 +1647,15 @@ Antworte NUR als JSON:
     // Rendere das Ergebnis
     renderScore(scoreData);
 
+    // 🎉 Confetti bei gutem Score!
+    if (scoreData.score >= 70 && typeof confetti !== 'undefined') {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+
     // Speichere in Firestore (für Historie)
     if (currentUser && activeProjectId) {
       try {
@@ -1625,7 +1675,7 @@ Antworte NUR als JSON:
   } catch (error) {
     console.error('Fehler beim Score-Berechnen:', error);
     scoreValue.textContent = '?';
-    alert(`Fehler beim Berechnen des Scores: ${error.message}`);
+    showToast(`Fehler beim Berechnen des Scores: ${error.message}`, 'error');
   } finally {
     // UI: Loading State zurücksetzen
     button.disabled = false;
@@ -2115,11 +2165,20 @@ window.exportToPDF = async function() {
     // Cleanup: Entferne geklontes Template
     document.body.removeChild(clonedTemplate);
 
-    showSavedFeedback('PDF erfolgreich erstellt!');
+    showToast('PDF erfolgreich erstellt!', 'success');
+    
+    // 🎉 Confetti beim PDF-Export!
+    if (typeof confetti !== 'undefined') {
+      confetti({
+        particleCount: 150,
+        spread: 90,
+        origin: { y: 0.6 }
+      });
+    }
 
   } catch (error) {
     console.error('Fehler beim PDF-Export:', error);
-    alert('Fehler beim Erstellen des PDFs: ' + error.message);
+    showToast('Fehler beim Erstellen des PDFs: ' + error.message, 'error');
   } finally {
     // UI: Loading State zurücksetzen
     exportButton.disabled = false;

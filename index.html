@@ -36,6 +36,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
+    <!-- Confetti for Delight Features -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
     <style>
         ::-webkit-scrollbar {
             width: 6px;
@@ -76,6 +79,12 @@
                 <span class="text-blue-400 text-sm">|</span>
                 <span class="text-sm text-gray-400">
                     Projekt: <span id="activeProjectName" class="text-blue-400 font-medium">Persönliches Projekt</span>
+                </span>
+                <span id="save-status" class="opacity-0 transition-opacity duration-300 text-xs text-emerald-400 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Gespeichert
                 </span>
             </div>
             <div id="authControls" class="flex items-center gap-4">
@@ -217,28 +226,9 @@
                     <!-- Links: Input -->
                     <div class="space-y-6">
                         <div class="glass-panel p-6">
-                            <label for="persona_name" class="label block mb-3">Name der Persona</label>
-                            <textarea id="persona_name" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="z.B. Maria, die vielbeschäftigte Studentin"></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="persona_demographics" class="label block mb-3">Demografie</label>
-                            <textarea id="persona_demographics" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="Alter, Beruf, Ort, etc."></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="persona_full" class="label block mb-3">Persona Deep-Dive</label>
-                            <textarea id="persona_full" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-6 overflow-hidden" placeholder="Beschreibe Maria, 28, Studentin, die jeden Tag zwischen Vorlesungen, Nebenjob und Lernen jongliert. Sie hat keine Zeit für komplizierte Tools und braucht schnelle, einfache Lösungen..."></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="persona_pains" class="label block mb-3">Schmerzpunkte (Pains)</label>
-                            <textarea id="persona_pains" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-5 overflow-hidden" placeholder="Was frustriert sie/ihn im Moment?"></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="persona_gains" class="label block mb-3">Gewünschte Ergebnisse (Gains)</label>
-                            <textarea id="persona_gains" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-5 overflow-hidden" placeholder="Was ist ihr/sein ideales Szenario?"></textarea>
+                            <label for="persona_full" class="label block mb-3">📖 Deine Zielgruppe als Geschichte</label>
+                            <p class="text-sm text-gray-400 mb-4">Beschreibe deine ideale Kundin oder deinen idealen Kunden. Wer sind sie? Was frustriert sie? Was ist ihr Ziel?</p>
+                            <textarea id="persona_full" class="w-full min-h-[300px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-6 overflow-hidden" placeholder="Beispiel:&#10;&#10;Sarah, 32, arbeitet als Marketing Managerin in einem Scale-up. Sie verbringt täglich 3-4 Stunden damit, Reports aus verschiedenen Tools zusammenzuklicken (Google Analytics, Facebook Ads, LinkedIn...).&#10;&#10;Ihre größte Frustration: Jedes Tool hat ein eigenes Dashboard, und keins spricht miteinander. Sie verliert den Überblick und kann ihrem Chef keine klaren Antworten geben.&#10;&#10;Ihr Ziel: Ein zentrales Dashboard, das alle Metriken vereint und automatisch Insights liefert, damit sie strategische Entscheidungen treffen kann statt nur Daten zu sammeln."></textarea>
                         </div>
                         
                         <button id="analyze-persona" class="w-full bg-white text-gray-900 font-semibold py-4 px-6 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2">
@@ -283,28 +273,15 @@
                     <!-- Links: Input -->
                     <div class="space-y-6">
                         <div class="glass-panel p-6">
-                            <label for="mvp_features" class="label block mb-3">MVP Features</label>
-                            <textarea id="mvp_features" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="Liste alle Kernfunktionen deines MVP auf. Was ist das absolute Minimum, das du bauen musst, um die Hypothese zu testen?"></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="mvp_core1" class="label block mb-3">Kernfunktion 1</label>
-                            <textarea id="mvp_core1" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="z.B. Benutzer kann sich registrieren"></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="mvp_core2" class="label block mb-3">Kernfunktion 2</label>
-                            <textarea id="mvp_core2" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="z.B. Benutzer kann ein Foto hochladen"></textarea>
-                        </div>
-                        
-                        <div class="glass-panel p-6">
-                            <label for="mvp_core3" class="label block mb-3">Kernfunktion 3</label>
-                            <textarea id="mvp_core3" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="z.B. Foto wird mit einem Wasserzeichen versehen"></textarea>
+                            <label for="mvp_features" class="label block mb-3">⚡ Deine 3 wichtigsten Features</label>
+                            <p class="text-sm text-gray-400 mb-4">Was ist das absolute Minimum, das du bauen musst, um die Hypothese zu testen?</p>
+                            <textarea id="mvp_features" class="w-full min-h-[200px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-6 overflow-hidden" placeholder="Beispiel:&#10;&#10;1. Dashboard-Verbindung: User kann 3 Marketing-Tools (GA, FB Ads, LinkedIn) per OAuth verbinden.&#10;&#10;2. Auto-Report: Das System generiert täglich einen 1-Seiten-Report mit den wichtigsten Metriken (ROI, Conversions, Top-Performer).&#10;&#10;3. Slack-Benachrichtigung: Der Report wird automatisch um 9 Uhr morgens per Slack verschickt."></textarea>
                         </div>
                         
                         <div class="glass-panel p-6 border-yellow-500/30">
-                            <label for="mvp_anti_features" class="label block mb-3 text-yellow-400">Anti-Features (Was es NICHT ist)</label>
-                            <textarea id="mvp_anti_features" class="w-full min-h-[100px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="WICHTIG: Was baue ich absichtlich NICHT?"></textarea>
+                            <label for="mvp_anti_features" class="label block mb-3 text-yellow-400">🚫 Anti-Features (Was es NICHT ist)</label>
+                            <p class="text-sm text-gray-400 mb-4">Was baue ich absichtlich NICHT, um fokussiert zu bleiben?</p>
+                            <textarea id="mvp_anti_features" class="w-full min-h-[120px] bg-transparent text-lg text-white placeholder-gray-500 border-none focus:ring-0 resize-none leading-relaxed p-4 overflow-hidden" placeholder="Beispiel:&#10;&#10;- KEINE Custom-Dashboards (User kann Layout nicht ändern)&#10;- KEINE manuelle Daten-Eingabe (nur automatische Imports)&#10;- KEINE erweiterte Analyse (nur Basis-Metriken)"></textarea>
                         </div>
                         
                         <button id="analyze-mvp" class="w-full bg-white text-gray-900 font-semibold py-4 px-6 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2">
