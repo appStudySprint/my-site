@@ -56,18 +56,193 @@
 <body class="min-h-screen bg-gray-950 text-gray-200">
     
     <!-- Landing Page -->
-    <div id="landing-page" class="min-h-screen flex items-center justify-center px-6">
-        <div class="max-w-3xl text-center">
-            <div class="mb-6">
-                <span class="text-7xl">🚀</span>
+    <div id="landing-page" class="min-h-screen">
+        <!-- Hero Section -->
+        <div class="min-h-screen flex items-center justify-center px-6 py-20">
+            <div class="max-w-3xl text-center">
+                <div class="mb-6">
+                    <span class="text-7xl">🚀</span>
+                </div>
+                <h1 class="text-6xl font-bold text-white mb-4">VentureValidator</h1>
+                <p class="text-2xl text-blue-400 mb-8">Dein KI Co-Founder</p>
+                <p class="text-xl text-gray-400 mb-12">Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot.</p>
+                <button id="landingStartButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-xl">
+                    Jetzt starten — kostenlos
+                </button>
+                <p class="text-sm text-gray-500 mt-6">Powered by Google Gemini Pro & Search</p>
             </div>
-            <h1 class="text-6xl font-bold text-white mb-4">VentureValidator</h1>
-            <p class="text-2xl text-blue-400 mb-8">Dein KI Co-Founder</p>
-            <p class="text-xl text-gray-400 mb-12">Validiere deine Startup-Idee in 5 Minuten. Mit KI-Analyse, Konkurrenz-Check und Auto-Pivot.</p>
-            <button id="landingStartButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-xl">
-                Jetzt starten — kostenlos
-            </button>
-            <p class="text-sm text-gray-500 mt-6">Powered by Google Gemini Pro & Search</p>
+        </div>
+
+        <!-- Social Proof Section -->
+        <section class="py-20 px-6 bg-gray-900/50">
+            <div class="max-w-6xl mx-auto">
+                <h2 class="text-3xl font-bold text-white text-center mb-12">Vertraut von Gründern</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <!-- Testimonial 1 -->
+                    <div class="glass-panel p-6 rounded-lg">
+                        <p class="text-gray-300 mb-4 italic">"Hat mir 50k gespart, weil ich gesehen habe, dass meine Idee keinen Markt hat."</p>
+                        <p class="text-sm text-blue-400 font-semibold">— Michael, LMU</p>
+                    </div>
+                    <!-- Testimonial 2 -->
+                    <div class="glass-panel p-6 rounded-lg">
+                        <p class="text-gray-300 mb-4 italic">"Das Konkurrenz-Radar ist Gold wert."</p>
+                        <p class="text-sm text-blue-400 font-semibold">— Sarah, Berlin</p>
+                    </div>
+                    <!-- Testimonial 3 -->
+                    <div class="glass-panel p-6 rounded-lg">
+                        <p class="text-gray-300 mb-4 italic">"Der Auto-Pivot ist wie Magie."</p>
+                        <p class="text-sm text-blue-400 font-semibold">— Tom, München</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="py-20 px-6">
+            <div class="max-w-6xl mx-auto">
+                <h2 class="text-4xl font-bold text-white text-center mb-4">Preise</h2>
+                <p class="text-gray-400 text-center mb-12">Wähle den Plan, der zu dir passt</p>
+                
+                <div class="grid md:grid-cols-3 gap-8">
+                    <!-- Starter (Free) -->
+                    <div class="glass-panel p-8 rounded-lg border border-gray-700">
+                        <h3 class="text-2xl font-bold text-white mb-2">Starter</h3>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold text-white">Kostenlos</span>
+                        </div>
+                        <ul class="space-y-3 mb-8 text-gray-300">
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-2">✓</span>
+                                <span>1 Analyse/Monat</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-2">✓</span>
+                                <span>Basis-Check</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-gray-600 mr-2">✗</span>
+                                <span class="text-gray-500">Kein PDF</span>
+                            </li>
+                        </ul>
+                        <button id="landingStartButton2" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200">
+                            Kostenlos starten
+                        </button>
+                    </div>
+
+                    <!-- Founder (Pro) - HERVORGEHOBEN -->
+                    <div class="glass-panel p-8 rounded-lg border-2 border-emerald-500 relative transform scale-105 shadow-2xl">
+                        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-blue-500 text-white text-xs font-bold py-1 px-4 rounded-full">
+                            BELIEBT
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Founder</h3>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold text-white">19€</span>
+                            <span class="text-gray-400">/Monat</span>
+                        </div>
+                        <ul class="space-y-3 mb-8 text-gray-300">
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">✓</span>
+                                <span>Unbegrenzte Analysen</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">✓</span>
+                                <span>Auto-Pivot</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">✓</span>
+                                <span>Konkurrenz-Radar</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">✓</span>
+                                <span>Investment Memo PDF</span>
+                            </li>
+                        </ul>
+                        <button id="btn-buy-pro" class="w-full bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl">
+                            Pro werden
+                        </button>
+                    </div>
+
+                    <!-- VC / Enterprise -->
+                    <div class="glass-panel p-8 rounded-lg border border-gray-700">
+                        <h3 class="text-2xl font-bold text-white mb-2">VC / Enterprise</h3>
+                        <div class="mb-6">
+                            <span class="text-4xl font-bold text-white">Call us</span>
+                        </div>
+                        <ul class="space-y-3 mb-8 text-gray-300">
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-2">✓</span>
+                                <span>White Label</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-2">✓</span>
+                                <span>API Zugang</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-2">✓</span>
+                                <span>Custom Features</span>
+                            </li>
+                        </ul>
+                        <button class="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200">
+                            Kontakt
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer auf Landing Page -->
+        <footer class="py-12 px-6 border-t border-gray-800 text-center">
+            <p class="text-sm text-gray-400 mb-2">
+                <span class="font-semibold text-white">VentureValidator</span> — Validiere deine Startup-Idee mit KI
+            </p>
+            <p class="text-xs text-gray-500 mb-4">
+                Powered by Gemini Pro & Google Search
+            </p>
+            <div class="flex items-center justify-center gap-4 text-xs">
+                <a href="/legal/impressum.html" target="_blank" class="text-gray-500 hover:text-white transition-colors">Impressum</a>
+                <span class="text-gray-600">•</span>
+                <a href="/legal/datenschutz.html" target="_blank" class="text-gray-500 hover:text-white transition-colors">Datenschutz</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Waitlist Modal -->
+    <div id="waitlist-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div class="glass-panel max-w-md w-full mx-4 p-8 rounded-lg border border-gray-700 shadow-2xl">
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-4">🚀</div>
+                <h2 class="text-2xl font-bold text-white mb-2">VentureValidator Pro ist fast da!</h2>
+                <p class="text-gray-400">Wir rollen die Pro-Features gerade aus. Sichere dir 50% Rabatt zum Launch.</p>
+            </div>
+            
+            <form id="waitlist-form" class="space-y-4">
+                <div>
+                    <label for="waitlist-email" class="block text-sm font-medium text-gray-300 mb-2">E-Mail-Adresse</label>
+                    <input 
+                        type="email" 
+                        id="waitlist-email" 
+                        required
+                        class="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="deine@email.de"
+                    />
+                </div>
+                
+                <div class="flex gap-3">
+                    <button 
+                        type="button" 
+                        id="waitlist-close"
+                        class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
+                    >
+                        Abbrechen
+                    </button>
+                    <button 
+                        type="submit"
+                        class="flex-1 bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
+                    >
+                        Auf die Warteliste
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

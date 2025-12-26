@@ -210,18 +210,37 @@ function storageKey() {
 }
 
 function setupAuthUi() {
-  // Landing Page Start Button
+  // Landing Page Start Buttons (2 Buttons für bessere UX)
   const landingBtn = document.getElementById('landingStartButton');
-  if (landingBtn) {
-      landingBtn.addEventListener('click', () => {
-        signInWithPopup(auth, googleProvider).catch((error) => {
-        console.error("Login Fehler:", error);
-        alert("Login fehlgeschlagen: " + error.message);
-      });
+  const landingBtn2 = document.getElementById('landingStartButton2');
+  
+  const handleLogin = () => {
+    signInWithPopup(auth, googleProvider).catch((error) => {
+      console.error("Login Fehler:", error);
+      alert("Login fehlgeschlagen: " + error.message);
     });
+  };
+  
+  if (landingBtn) {
+    landingBtn.addEventListener('click', handleLogin);
   } else {
     console.error("ACHTUNG: Landing-Page Button nicht gefunden!");
   }
+  
+  if (landingBtn2) {
+    landingBtn2.addEventListener('click', handleLogin);
+  }
+  
+  // Pro Button -> Öffne Warteliste Modal
+  const btnBuyPro = document.getElementById('btn-buy-pro');
+  if (btnBuyPro) {
+    btnBuyPro.addEventListener('click', () => {
+      openWaitlistModal();
+    });
+  }
+  
+  // Warteliste Modal Setup
+  setupWaitlistModal();
 
   const signInButton = document.getElementById('signInButton');
   const signOutButton = document.getElementById('signOutButton');
@@ -291,6 +310,105 @@ function setupAuthUi() {
       }
     }
   });
+}
+
+// ============================================
+// WARLISTE MODAL (Fake Door Test)
+// ============================================
+
+function openWaitlistModal() {
+  const modal = document.getElementById('waitlist-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    // Focus auf E-Mail Input
+    const emailInput = document.getElementById('waitlist-email');
+    if (emailInput) {
+      setTimeout(() => emailInput.focus(), 100);
+    }
+  }
+}
+
+function closeWaitlistModal() {
+  const modal = document.getElementById('waitlist-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    // Reset Form
+    const form = document.getElementById('waitlist-form');
+    if (form) form.reset();
+  }
+}
+
+function setupWaitlistModal() {
+  const modal = document.getElementById('waitlist-modal');
+  const closeBtn = document.getElementById('waitlist-close');
+  const form = document.getElementById('waitlist-form');
+  
+  if (!modal || !closeBtn || !form) {
+    console.warn('Warteliste-Modal Elemente nicht gefunden');
+    return;
+  }
+  
+  // Close Button
+  closeBtn.addEventListener('click', closeWaitlistModal);
+  
+  // Close bei Klick auf Backdrop
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeWaitlistModal();
+    }
+  });
+  
+  // Close bei ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      closeWaitlistModal();
+    }
+  });
+  
+  // Form Submit
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('waitlist-email');
+    const email = emailInput?.value?.trim();
+    
+    if (!email) {
+      showToast('Bitte gib eine E-Mail-Adresse ein', 'error');
+      return;
+    }
+    
+    // Email validieren
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showToast('Bitte gib eine gültige E-Mail-Adresse ein', 'error');
+      return;
+    }
+    
+    try {
+      await saveToWaitlist(email);
+      showToast('Du stehst auf der Liste! Wir melden uns.', 'success');
+      closeWaitlistModal();
+    } catch (error) {
+      console.error('Fehler beim Speichern in Warteliste:', error);
+      showToast('Fehler beim Speichern. Bitte versuche es erneut.', 'error');
+    }
+  });
+}
+
+async function saveToWaitlist(email) {
+  try {
+    await addDoc(collection(db, 'waitlist'), {
+      email: email,
+      createdAt: serverTimestamp(),
+      source: 'landing-page-pro-button',
+      discount: 50 // 50% Rabatt
+    });
+    console.log('✅ E-Mail erfolgreich zur Warteliste hinzugefügt:', email);
+  } catch (error) {
+    console.error('❌ Fehler beim Speichern in Warteliste:', error);
+    throw error;
+  }
 }
 
 async function initializeForUser(user) {
