@@ -1720,6 +1720,20 @@ Antworte im Markdown-Format:
         await saveAnalysis(sectionName, content, aiResponse);
         showAnalysisSavedFeedback(button);
         showSavedFeedback('Analyse gespeichert');
+        
+        // Nach erfolgreicher Analyse: Setze lastAnalysisAt für Free-User
+        if (currentUserPlan === 'free') {
+          try {
+            const projectRef = doc(db, 'projects', activeProjectId);
+            await updateDoc(projectRef, {
+              lastAnalysisAt: serverTimestamp()
+            });
+            console.log('[analyzeSection] lastAnalysisAt gesetzt für Free-User');
+          } catch (error) {
+            console.error('[analyzeSection] Fehler beim Setzen von lastAnalysisAt:', error);
+            // Nicht kritisch, Log nur
+          }
+        }
       } catch (saveError) {
         console.error('Fehler beim Speichern der Analyse:', saveError);
         // Nicht kritisch - zeige Fehler nur in Console, nicht im UI
