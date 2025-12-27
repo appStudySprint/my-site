@@ -231,21 +231,25 @@ function storageKey() {
   return `${LOCAL_STORAGE_PREFIX}:${activeProjectId}`;
 }
 
+// ============================================
+// LOGIN HELPER FUNKTION
+// ============================================
+
+function triggerLogin() {
+  signInWithPopup(auth, googleProvider).catch((error) => {
+    console.error("Login Fehler:", error);
+    showToast("Login fehlgeschlagen: " + error.message, "error");
+  });
+}
+
 function setupAuthUi() {
   // Pricing Section Buttons
   const btnPlanFree = document.getElementById('btn-plan-free');
   const btnPlanPro = document.getElementById('btn-plan-pro');
   
-  const handleLogin = () => {
-      signInWithPopup(auth, googleProvider).catch((error) => {
-        console.error("Login Fehler:", error);
-      showToast("Login fehlgeschlagen: " + error.message, "error");
-    });
-  };
-  
   // Free Plan Button -> Direkter Login
   if (btnPlanFree) {
-    btnPlanFree.addEventListener('click', handleLogin);
+    btnPlanFree.addEventListener('click', triggerLogin);
   } else {
     console.error("ACHTUNG: btn-plan-free Button nicht gefunden!");
   }
@@ -257,6 +261,12 @@ function setupAuthUi() {
     });
   } else {
     console.error("ACHTUNG: btn-plan-pro Button nicht gefunden!");
+  }
+  
+  // Direkt Login Button (für Bestandskunden)
+  const btnLoginDirect = document.getElementById('btn-login-direct');
+  if (btnLoginDirect) {
+    btnLoginDirect.addEventListener('click', triggerLogin);
   }
   
   // Warteliste Modal Setup
@@ -310,7 +320,37 @@ function setupAuthUi() {
 
     if (userBadge) {
       if (user) {
-        // User eingeloggt -> Routing erfolgt in initializeForUser
+        // User eingeloggt -> Zeige App, verstecke Landing Page
+        const landingPageEl = document.getElementById('landing-page');
+        const appContainerEl = document.getElementById('app-container');
+        
+        if (landingPageEl) landingPageEl.classList.add('hidden');
+        if (appContainerEl) appContainerEl.classList.remove('hidden');
+        if (upsellGate) upsellGate.classList.add('hidden');
+        
+        // Schließe alle Modals sicherheitshalber
+        const waitlistModal = document.getElementById('waitlist-modal');
+        const downsellModal = document.getElementById('downsell-modal');
+        const upgradeModal = document.getElementById('upgrade-modal');
+        const confirmLimitModal = document.getElementById('confirm-limit-modal');
+        
+        if (waitlistModal) {
+          waitlistModal.classList.add('hidden');
+          waitlistModal.classList.remove('flex');
+        }
+        if (downsellModal) {
+          downsellModal.classList.add('hidden');
+          downsellModal.classList.remove('flex');
+        }
+        if (upgradeModal) {
+          upgradeModal.classList.add('hidden');
+          upgradeModal.classList.remove('flex');
+        }
+        if (confirmLimitModal) {
+          confirmLimitModal.classList.add('hidden');
+          confirmLimitModal.classList.remove('flex');
+        }
+        
         userBadge.classList.remove('hidden');
         userBadge.classList.add('flex');
         if (signInButton) signInButton.classList.add('hidden');
@@ -318,6 +358,7 @@ function setupAuthUi() {
         if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
         if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
         if (userEmail) userEmail.textContent = user.email ?? '';
+        
         await initializeForUser(user);
       } else {
         // User ausgeloggt -> Zeige Landing Page, verstecke alles andere
@@ -712,10 +753,7 @@ function setupDownsellModal() {
   // "Ja, kostenlos starten" Button -> Login
   yesBtn.addEventListener('click', () => {
     closeDownsellModal();
-    signInWithPopup(auth, googleProvider).catch((error) => {
-      console.error("Login Fehler:", error);
-      showToast("Login fehlgeschlagen: " + error.message, "error");
-    });
+    triggerLogin();
   });
   
   // "Nein, ich warte" Button -> Schließt Modal
