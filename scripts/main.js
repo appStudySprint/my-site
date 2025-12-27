@@ -197,36 +197,41 @@ const totalSteps = 6;
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[DOMContentLoaded] Starte Initialisierung');
   
-  // Initialisiere throttled functions zuerst
-  initializeThrottledFunctions();
-  
-  // Auth & Landing Page Setup - MUSS ZUERST passieren!
-  setupAuthUi();
-  loadLocalData();
-  autosizeAll();
-  setupAutosize(); // Initialisiere Autosize für alle Textareas
-  bindFieldListeners();
-  setupClearButton();
-  setupInviteForm();
-  captureInviteFromUrl();
-  setupAnalyzeButtons();
-  setupWizard();
-  setupHistoryPanel();
-  setupFinanceCalculator();
-  
-  // PDF Export Button
-  const pdfButton = document.getElementById('btn-export-pdf');
-  if (pdfButton) {
-    pdfButton.addEventListener('click', exportToPDF);
+  try {
+    // Initialisiere throttled functions zuerst
+    initializeThrottledFunctions();
+    
+    // Auth & Landing Page Setup - MUSS ZUERST passieren!
+    setupAuthUi();
+    
+    loadLocalData();
+    autosizeAll();
+    setupAutosize(); // Initialisiere Autosize für alle Textareas
+    bindFieldListeners();
+    setupClearButton();
+    setupInviteForm();
+    captureInviteFromUrl();
+    setupAnalyzeButtons();
+    setupWizard();
+    setupHistoryPanel();
+    setupFinanceCalculator();
+    
+    // PDF Export Button
+    const pdfButton = document.getElementById('btn-export-pdf');
+    if (pdfButton) {
+      pdfButton.addEventListener('click', exportToPDF);
+    }
+    
+    // Finish Project Button
+    const finishButton = document.getElementById('btn-finish-project');
+    if (finishButton) {
+      finishButton.addEventListener('click', finishProject);
+    }
+    
+    showStep(1); // Starte mit Schritt 1
+  } catch (error) {
+    console.error('[DOMContentLoaded] Fehler bei Initialisierung:', error);
   }
-  
-  // Finish Project Button
-  const finishButton = document.getElementById('btn-finish-project');
-  if (finishButton) {
-    finishButton.addEventListener('click', finishProject);
-  }
-  
-  showStep(1); // Starte mit Schritt 1
 });
 
 function storageKey() {
@@ -238,92 +243,26 @@ function storageKey() {
 // ZENTRALE UI-STATE VERWALTUNG
 // ============================================
 
-async function updateUIState(user) {
-  console.log('[updateUIState] User:', user ? user.uid : 'null');
+function updateUIState(user) {
+  const landing = document.getElementById('landing-page');
+  const app = document.getElementById('app-container');
   
-  const landingPage = document.getElementById('landing-page');
-  const appContainer = document.getElementById('app-container');
-  const upsellGate = document.getElementById('upsell-gate');
-  
+  console.log("UI State Update. User:", user ? "Logged In" : "Logged Out");
+
   if (user) {
-    // User ist eingeloggt -> Landing Page WEG, App DA
-    console.log('[updateUIState] UI Switch: App');
-    
-    if (landingPage) landingPage.classList.add('hidden');
-    if (appContainer) appContainer.classList.remove('hidden');
-    if (upsellGate) upsellGate.classList.add('hidden');
-    
-    // Schließe ALLE Modals aggressiv
-    const waitlistModal = document.getElementById('waitlist-modal');
-    const downsellModal = document.getElementById('downsell-modal');
-    const upgradeModal = document.getElementById('upgrade-modal');
-    const confirmLimitModal = document.getElementById('confirm-limit-modal');
-    
-    if (waitlistModal) {
-      waitlistModal.classList.add('hidden');
-      waitlistModal.classList.remove('flex');
-    }
-    if (downsellModal) {
-      downsellModal.classList.add('hidden');
-      downsellModal.classList.remove('flex');
-    }
-    if (upgradeModal) {
-      upgradeModal.classList.add('hidden');
-      upgradeModal.classList.remove('flex');
-    }
-    if (confirmLimitModal) {
-      confirmLimitModal.classList.add('hidden');
-      confirmLimitModal.classList.remove('flex');
-    }
-    
-    // User Badge UI
-    const userBadge = document.getElementById('userBadge');
-    const signInButton = document.getElementById('signInButton');
-    const userName = document.getElementById('userName');
-    const userEmail = document.getElementById('userEmail');
-    const historyButtonAuthed = document.getElementById('history-button-authed');
-    
-    if (userBadge) {
-      userBadge.classList.remove('hidden');
-      userBadge.classList.add('flex');
-    }
-    if (signInButton) signInButton.classList.add('hidden');
-    if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
-    if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
-    if (userEmail) userEmail.textContent = user.email ?? '';
-    
-    await initializeForUser(user);
+    if (landing) landing.classList.add('hidden');
+    if (app) app.classList.remove('hidden');
+    // Modals schließen
+    document.querySelectorAll('.fixed').forEach(el => {
+      if (el.id && (el.id.includes('modal') || el.id.includes('gate'))) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+      }
+    });
+    initializeForUser(user);
   } else {
-    // User ist ausgeloggt -> Landing Page DA, App WEG
-    console.log('[updateUIState] UI Switch: Landing');
-    
-    if (landingPage) landingPage.classList.remove('hidden');
-    if (appContainer) appContainer.classList.add('hidden');
-    if (upsellGate) upsellGate.classList.add('hidden');
-    
-    // User Badge UI
-    const userBadge = document.getElementById('userBadge');
-    const signInButton = document.getElementById('signInButton');
-    const historyButtonAuthed = document.getElementById('history-button-authed');
-    
-    if (userBadge) {
-      userBadge.classList.add('hidden');
-      userBadge.classList.remove('flex');
-    }
-    if (signInButton) signInButton.classList.remove('hidden');
-    if (historyButtonAuthed) historyButtonAuthed.classList.add('hidden');
-    
-    // Cleanup
-    clearProjectSubscriptions();
-    activeProjectId = null;
-    activeProjectName = 'Persönliches Projekt';
-    currentMembership = { role: 'viewer' };
-    userProfile = null;
-    currentUserPlan = 'free';
-    updateProjectLabel();
-    toggleTeamSection(false);
-    loadLocalData();
-    autosizeAll();
+    if (landing) landing.classList.remove('hidden');
+    if (app) app.classList.add('hidden');
   }
 }
 
@@ -391,8 +330,8 @@ function setupAuthUi() {
   // Upgrade Modal Setup
   setupUpgradeModal();
   
-  // Confirm Limit Modal Setup
-  setupConfirmLimitModal();
+  // Confirm Limit Modal Setup - ENTFERNT (Funktion existiert nicht)
+  // setupConfirmLimitModal();
   
   // Downsell Modal Setup
   setupDownsellModal();
