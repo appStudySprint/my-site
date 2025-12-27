@@ -249,9 +249,17 @@ function updateUIState(user) {
   
   console.log("UI State Update. User:", user ? "Logged In" : "Logged Out");
 
+  // Header-Elemente
+  const btnLogin = document.getElementById('signInButton');
+  const userBadge = document.getElementById('userBadge');
+  const userName = document.getElementById('userName');
+  const userEmail = document.getElementById('userEmail');
+  const historyButtonAuthed = document.getElementById('history-button-authed');
+
   if (user) {
     if (landing) landing.classList.add('hidden');
     if (app) app.classList.remove('hidden');
+    
     // Modals schließen
     document.querySelectorAll('.fixed').forEach(el => {
       if (el.id && (el.id.includes('modal') || el.id.includes('gate'))) {
@@ -259,10 +267,29 @@ function updateUIState(user) {
         el.classList.remove('flex');
       }
     });
+    
+    // Header-Status: Zeige Badge, Verstecke Login-Button
+    if (btnLogin) btnLogin.classList.add('hidden');
+    if (userBadge) {
+      userBadge.classList.remove('hidden');
+      userBadge.classList.add('flex');
+    }
+    if (userName) userName.textContent = user.displayName || user.email || 'Gründer';
+    if (userEmail) userEmail.textContent = user.email || '';
+    if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
+    
     initializeForUser(user);
   } else {
     if (landing) landing.classList.remove('hidden');
     if (app) app.classList.add('hidden');
+    
+    // Header-Status: Zeige Login-Button, Verstecke Badge
+    if (btnLogin) btnLogin.classList.remove('hidden');
+    if (userBadge) {
+      userBadge.classList.add('hidden');
+      userBadge.classList.remove('flex');
+    }
+    if (historyButtonAuthed) historyButtonAuthed.classList.add('hidden');
   }
 }
 
@@ -1638,13 +1665,14 @@ function showToast(message, type = 'success') {
   const isError = type === 'error';
   const isWarning = type === 'warning';
   
-  const bgColor = isError ? 'bg-red-500/90' : isWarning ? 'bg-yellow-500/90' : 'bg-emerald-500/90';
+  const bgColor = isError ? 'bg-red-600/95' : isWarning ? 'bg-yellow-600/95' : 'bg-emerald-600/95';
   const icon = isError ? '❌' : isWarning ? '⚠️' : '✓';
   
-  toast.className = `fixed bottom-6 right-6 z-[100] ${bgColor} backdrop-blur-sm text-white px-6 py-4 rounded-lg shadow-2xl ring-1 ring-white/20 flex items-center gap-3 transform translate-x-[500px] transition-transform duration-300`;
+  // Toast oben rechts, unter dem Header, mit extrem hohem Z-Index
+  toast.className = `fixed top-24 right-5 z-[9999] ${bgColor} text-white border border-white/20 backdrop-blur-sm px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 transform translate-x-[500px] transition-transform duration-300`;
   toast.innerHTML = `
     <span class="text-2xl">${icon}</span>
-    <span class="font-medium">${message}</span>
+    <span class="font-medium text-white">${message}</span>
   `;
   
   document.body.appendChild(toast);
