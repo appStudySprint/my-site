@@ -231,37 +231,38 @@ function storageKey() {
 }
 
 function setupAuthUi() {
-  // Landing Page Start Buttons (2 Buttons für bessere UX)
-  const landingBtn = document.getElementById('landingStartButton');
-  const landingBtn2 = document.getElementById('landingStartButton2');
+  // Pricing Section Buttons
+  const btnPlanFree = document.getElementById('btn-plan-free');
+  const btnPlanPro = document.getElementById('btn-plan-pro');
   
   const handleLogin = () => {
     signInWithPopup(auth, googleProvider).catch((error) => {
       console.error("Login Fehler:", error);
-      alert("Login fehlgeschlagen: " + error.message);
+      showToast("Login fehlgeschlagen: " + error.message, "error");
     });
   };
   
-  if (landingBtn) {
-    landingBtn.addEventListener('click', handleLogin);
+  // Free Plan Button -> Direkter Login
+  if (btnPlanFree) {
+    btnPlanFree.addEventListener('click', handleLogin);
   } else {
-    console.error("ACHTUNG: Landing-Page Button nicht gefunden!");
+    console.error("ACHTUNG: btn-plan-free Button nicht gefunden!");
   }
   
-  if (landingBtn2) {
-    landingBtn2.addEventListener('click', handleLogin);
-  }
-  
-  // Pro Button -> Öffne Warteliste Modal
-  const btnBuyPro = document.getElementById('btn-buy-pro');
-  if (btnBuyPro) {
-    btnBuyPro.addEventListener('click', () => {
+  // Pro Plan Button -> Öffne Warteliste Modal
+  if (btnPlanPro) {
+    btnPlanPro.addEventListener('click', () => {
       openWaitlistModal();
     });
+  } else {
+    console.error("ACHTUNG: btn-plan-pro Button nicht gefunden!");
   }
   
   // Warteliste Modal Setup
   setupWaitlistModal();
+  
+  // Upgrade Modal Setup
+  setupUpgradeModal();
 
   const signInButton = document.getElementById('signInButton');
   const signOutButton = document.getElementById('signOutButton');
@@ -554,10 +555,25 @@ async function ensureOwnerProject(user) {
     await setDoc(ref, {
       ownerId: user.uid,
       name: 'Persönliches Projekt',
+      plan: 'free', // Standard-Plan ist 'free'
       fields: initialFields,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    console.log('[ensureOwnerProject] Neues Projekt erstellt mit plan: free');
+    currentUserPlan = 'free';
+  } else {
+    // Lade Plan aus bestehendem Projekt
+    const data = snapshot.data();
+    if (data.plan) {
+      currentUserPlan = data.plan;
+      console.log('[ensureOwnerProject] Plan geladen:', currentUserPlan);
+    } else {
+      // Fallback: Setze Plan auf 'free' wenn nicht vorhanden
+      await updateDoc(ref, { plan: 'free' });
+      currentUserPlan = 'free';
+      console.log('[ensureOwnerProject] Plan auf free gesetzt (Fallback)');
+    }
   }
   await setDoc(doc(db, 'projects', projectId, 'members', user.uid), {
     role: 'owner',
@@ -672,6 +688,12 @@ function subscribeToProject(projectId) {
     const data = docSnap.data() ?? {};
     activeProjectName = data.name ?? activeProjectName;
     updateProjectLabel();
+
+    // Lade User Plan aus Projekt-Daten
+    if (data.plan) {
+      currentUserPlan = data.plan;
+      console.log('[subscribeToProject] Plan aktualisiert:', currentUserPlan);
+    }
 
     const remoteFields = data.fields ?? {};
     isApplyingRemoteData = true;
