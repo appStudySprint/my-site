@@ -263,6 +263,9 @@ function setupAuthUi() {
   
   // Upgrade Modal Setup
   setupUpgradeModal();
+  
+  // Confirm Limit Modal Setup
+  setupConfirmLimitModal();
 
   const signInButton = document.getElementById('signInButton');
   const signOutButton = document.getElementById('signOutButton');
@@ -469,7 +472,7 @@ function setupUpgradeModal() {
   // "Zu den Preisen" Button -> Scrollt zur Pricing Section
   toPricingBtn.addEventListener('click', () => {
     closeUpgradeModal();
-    const pricingSection = document.getElementById('pricing-section');
+    const pricingSection = document.getElementById('pricing');
     if (pricingSection) {
       pricingSection.scrollIntoView({ behavior: 'smooth' });
     } else {
@@ -1512,6 +1515,105 @@ function markdownToHtml(markdown) {
 }
 
 async function analyzeSection(sectionName) {
+  console.log('[analyzeSection] Start für Sektion:', sectionName);
+  console.log('[analyzeSection] currentUserPlan:', currentUserPlan);
+  
+  // FEATURE GATING: Prüfe Plan und Limits
+  if (currentUserPlan === 'pro') {
+    // Pro-User: Alles erlaubt, direkt weiter
+    console.log('[analyzeSection] Pro-User, führe Analyse direkt aus');
+  } else if (currentUserPlan === 'free') {
+    // Free-User: Prüfe Limit
+    console.log('[analyzeSection] Free-User, prüfe monatliches Limit');
+    
+    if (!currentUser || !activeProjectId) {
+      showToast('Bitte melde dich an, um eine Analyse zu starten', 'error');
+      return;
+    }
+    
+    try {
+      const projectRef = doc(db, 'projects', activeProjectId);
+      const projectSnap = await getDoc(projectRef);
+      
+      if (!projectSnap.exists()) {
+        console.error('[analyzeSection] Projekt nicht gefunden');
+        return;
+      }
+      
+      const projectData = projectSnap.data();
+      const lastAnalysisAt = projectData.lastAnalysisAt;
+      
+      if (lastAnalysisAt) {
+        // Prüfe ob letzte Analyse < 30 Tage her ist
+        const lastAnalysisDate = lastAnalysisAt.toDate();
+        const now = new Date();
+        const daysDiff = Math.floor((now - lastAnalysisDate) / (1000 * 60 * 60 * 24));
+        
+        console.log('[analyzeSection] Letzte Analyse vor', daysDiff, 'Tagen');
+        
+        if (daysDiff < 30) {
+          // Limit erreicht -> Zeige Upgrade Modal
+          console.log('[analyzeSection] Limit erreicht, zeige Upgrade Modal');
+          openUpgradeModal();
+          return;
+        }
+      }
+      
+      // Limit nicht erreicht -> Zeige Bestätigungs-Modal
+      console.log('[analyzeSection] Limit verfügbar, zeige Bestätigungs-Modal');
+      
+      // Warte auf User-Bestätigung
+      const confirmed = await new Promise((resolve) => {
+        pendingAnalysisCallback = resolve;
+        
+        // Setup "Ja" Button (wird nur einmal beim Öffnen gesetzt)
+        const yesBtn = document.getElementById('confirm-limit-yes');
+        if (yesBtn) {
+          // Entferne alte Listener (falls vorhanden)
+          const newYesBtn = yesBtn.cloneNode(true);
+          yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+          
+          newYesBtn.addEventListener('click', () => {
+            closeConfirmLimitModal();
+            resolve(true);
+          });
+          
+          // Setup "Noch mal prüfen" Button
+          const noBtn = document.getElementById('confirm-limit-no');
+          if (noBtn) {
+            const newNoBtn = noBtn.cloneNode(true);
+            noBtn.parentNode.replaceChild(newNoBtn, noBtn);
+            
+            newNoBtn.addEventListener('click', () => {
+              closeConfirmLimitModal();
+              resolve(false);
+            });
+          }
+        }
+        
+        openConfirmLimitModal();
+      });
+      
+      pendingAnalysisCallback = null;
+      
+      if (!confirmed) {
+        console.log('[analyzeSection] Analyse vom User abgebrochen');
+        return;
+      }
+      
+      console.log('[analyzeSection] Analyse vom User bestätigt, starte API-Call');
+    } catch (error) {
+      console.error('[analyzeSection] Fehler beim Prüfen des Limits:', error);
+      showToast('Fehler beim Prüfen des Limits. Bitte versuche es erneut.', 'error');
+      return;
+    }
+  } else {
+    // Unbekannter Plan -> Blockiere
+    console.warn('[analyzeSection] Unbekannter Plan, blockiere Analyse');
+    openUpgradeModal();
+    return;
+  }
+  
   const sectionConfig = {
     'hypothese': {
       buttonId: 'analyze-hypothese',
