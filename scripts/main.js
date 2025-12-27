@@ -1598,6 +1598,9 @@ async function analyzeSection(sectionName) {
       
       if (!confirmed) {
         console.log('[analyzeSection] Analyse vom User abgebrochen');
+        // UI zurücksetzen (falls bereits gesetzt)
+        if (button) button.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
         return;
       }
       
@@ -1605,14 +1608,26 @@ async function analyzeSection(sectionName) {
     } catch (error) {
       console.error('[analyzeSection] Fehler beim Prüfen des Limits:', error);
       showToast('Fehler beim Prüfen des Limits. Bitte versuche es erneut.', 'error');
+      // UI zurücksetzen
+      if (button) button.disabled = false;
+      if (spinner) spinner.classList.add('hidden');
       return;
     }
   } else {
     // Unbekannter Plan -> Blockiere
     console.warn('[analyzeSection] Unbekannter Plan, blockiere Analyse');
     openUpgradeModal();
+    // UI zurücksetzen
+    if (button) button.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
     return;
   }
+  
+  // AB HIER: Normale Analyse-Logik (für Pro-User oder bestätigte Free-User)
+  // UI: Loading-State setzen (jetzt, wo wir wissen, dass die Analyse startet)
+  button.disabled = true;
+  spinner.classList.remove('hidden');
+  responseDiv.classList.add('hidden');
   
   const sectionConfig = {
     'hypothese': {
@@ -1691,10 +1706,7 @@ Antworte im Markdown-Format:
     return;
   }
 
-  // UI: Loading-State
-  button.disabled = true;
-  spinner.classList.remove('hidden');
-  responseDiv.classList.add('hidden');
+  // UI: Loading-State wird später gesetzt (nach Limit-Check für Free-User)
 
   try {
     // Erstelle den vollständigen Prompt
