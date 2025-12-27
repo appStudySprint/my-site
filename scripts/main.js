@@ -314,74 +314,78 @@ function setupAuthUi() {
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
 
-    const appContainer = document.getElementById('app-container');
-    const landingPage = document.getElementById('landing-page');
+    // AGGRESSIVE UI-UMSCHALTUNG - Sofort, ohne auf andere Elemente zu warten
+    const landing = document.getElementById('landing-page');
+    const app = document.getElementById('app-container');
     const upsellGate = document.getElementById('upsell-gate');
-
-    if (userBadge) {
-      if (user) {
-        // User eingeloggt -> Zeige App, verstecke Landing Page
-        const landingPageEl = document.getElementById('landing-page');
-        const appContainerEl = document.getElementById('app-container');
-        
-        if (landingPageEl) landingPageEl.classList.add('hidden');
-        if (appContainerEl) appContainerEl.classList.remove('hidden');
-        if (upsellGate) upsellGate.classList.add('hidden');
-        
-        // Schließe alle Modals sicherheitshalber
-        const waitlistModal = document.getElementById('waitlist-modal');
-        const downsellModal = document.getElementById('downsell-modal');
-        const upgradeModal = document.getElementById('upgrade-modal');
-        const confirmLimitModal = document.getElementById('confirm-limit-modal');
-        
-        if (waitlistModal) {
-          waitlistModal.classList.add('hidden');
-          waitlistModal.classList.remove('flex');
-        }
-        if (downsellModal) {
-          downsellModal.classList.add('hidden');
-          downsellModal.classList.remove('flex');
-        }
-        if (upgradeModal) {
-          upgradeModal.classList.add('hidden');
-          upgradeModal.classList.remove('flex');
-        }
-        if (confirmLimitModal) {
-          confirmLimitModal.classList.add('hidden');
-          confirmLimitModal.classList.remove('flex');
-        }
-        
+    
+    if (user) {
+      // User ist eingeloggt -> Landing Page WEG, App DA
+      if (landing) landing.classList.add('hidden');
+      if (app) app.classList.remove('hidden');
+      if (upsellGate) upsellGate.classList.add('hidden');
+      
+      // Schließe ALLE Modals aggressiv
+      const waitlistModal = document.getElementById('waitlist-modal');
+      const downsellModal = document.getElementById('downsell-modal');
+      const upgradeModal = document.getElementById('upgrade-modal');
+      const confirmLimitModal = document.getElementById('confirm-limit-modal');
+      
+      if (waitlistModal) {
+        waitlistModal.classList.add('hidden');
+        waitlistModal.classList.remove('flex');
+      }
+      if (downsellModal) {
+        downsellModal.classList.add('hidden');
+        downsellModal.classList.remove('flex');
+      }
+      if (upgradeModal) {
+        upgradeModal.classList.add('hidden');
+        upgradeModal.classList.remove('flex');
+      }
+      if (confirmLimitModal) {
+        confirmLimitModal.classList.add('hidden');
+        confirmLimitModal.classList.remove('flex');
+      }
+      
+      // User Badge UI
+      if (userBadge) {
         userBadge.classList.remove('hidden');
         userBadge.classList.add('flex');
-        if (signInButton) signInButton.classList.add('hidden');
-        const historyButtonAuthed = document.getElementById('history-button-authed');
-        if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
-        if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
-        if (userEmail) userEmail.textContent = user.email ?? '';
-        
-        await initializeForUser(user);
-      } else {
-        // User ausgeloggt -> Zeige Landing Page, verstecke alles andere
-        if (appContainer) appContainer.classList.add('hidden');
-        if (landingPage) landingPage.classList.remove('hidden');
-        if (upsellGate) upsellGate.classList.add('hidden');
-        
+      }
+      if (signInButton) signInButton.classList.add('hidden');
+      const historyButtonAuthed = document.getElementById('history-button-authed');
+      if (historyButtonAuthed) historyButtonAuthed.classList.remove('hidden');
+      if (userName) userName.textContent = user.displayName ?? 'Unbekannter Benutzer';
+      if (userEmail) userEmail.textContent = user.email ?? '';
+      
+      await initializeForUser(user);
+    } else {
+      // User ist ausgeloggt -> Landing Page DA, App WEG
+      if (landing) landing.classList.remove('hidden');
+      if (app) app.classList.add('hidden');
+      if (upsellGate) upsellGate.classList.add('hidden');
+      
+      // User Badge UI
+      if (userBadge) {
         userBadge.classList.add('hidden');
         userBadge.classList.remove('flex');
-        if (signInButton) signInButton.classList.remove('hidden');
-        const historyButtonAuthed = document.getElementById('history-button-authed');
-        if (historyButtonAuthed) historyButtonAuthed.classList.add('hidden');
-        clearProjectSubscriptions();
-        activeProjectId = null;
-        activeProjectName = 'Persönliches Projekt';
-        currentMembership = { role: 'viewer' };
-        userProfile = null; // Reset User-Profil
-        currentUserPlan = 'free'; // Reset Plan
-        updateProjectLabel();
-        toggleTeamSection(false);
-        loadLocalData();
-        autosizeAll();
       }
+      if (signInButton) signInButton.classList.remove('hidden');
+      const historyButtonAuthed = document.getElementById('history-button-authed');
+      if (historyButtonAuthed) historyButtonAuthed.classList.add('hidden');
+      
+      // Cleanup
+      clearProjectSubscriptions();
+      activeProjectId = null;
+      activeProjectName = 'Persönliches Projekt';
+      currentMembership = { role: 'viewer' };
+      userProfile = null; // Reset User-Profil
+      currentUserPlan = 'free'; // Reset Plan
+      updateProjectLabel();
+      toggleTeamSection(false);
+      loadLocalData();
+      autosizeAll();
     }
   });
 }
