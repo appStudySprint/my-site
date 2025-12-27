@@ -32,17 +32,17 @@ import {
 async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
   try {
     const requestBody = {
-      contents: [{
-        parts: [{
-          text: userPrompt
-        }]
-      }],
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-      ]
+        contents: [{
+          parts: [{
+            text: userPrompt
+          }]
+        }],
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
     };
 
     // Aktiviere Google Search Tool für echte Marktdaten
@@ -173,6 +173,7 @@ const LOCAL_STORAGE_PREFIX = 'projektDashboardData';
 
 let currentUser = null;
 let currentUserPlan = 'free'; // 'free' oder 'pro'
+let userProfile = null; // User-Profil aus Firestore (email, plan, isWaitlisted)
 let projectDocRef = null;
 let unsubscribeProject = null;
 let unsubscribeMembers = null;
@@ -236,8 +237,8 @@ function setupAuthUi() {
   const btnPlanPro = document.getElementById('btn-plan-pro');
   
   const handleLogin = () => {
-    signInWithPopup(auth, googleProvider).catch((error) => {
-      console.error("Login Fehler:", error);
+      signInWithPopup(auth, googleProvider).catch((error) => {
+        console.error("Login Fehler:", error);
       showToast("Login fehlgeschlagen: " + error.message, "error");
     });
   };
@@ -266,6 +267,12 @@ function setupAuthUi() {
   
   // Confirm Limit Modal Setup
   setupConfirmLimitModal();
+  
+  // Downsell Modal Setup
+  setupDownsellModal();
+  
+  // Upsell Gate Setup
+  setupUpsellGate();
 
   const signInButton = document.getElementById('signInButton');
   const signOutButton = document.getElementById('signOutButton');
@@ -299,13 +306,11 @@ function setupAuthUi() {
 
     const appContainer = document.getElementById('app-container');
     const landingPage = document.getElementById('landing-page');
+    const upsellGate = document.getElementById('upsell-gate');
 
     if (userBadge) {
       if (user) {
-        // User eingeloggt -> Zeige App, verstecke Landing Page
-        if (appContainer) appContainer.classList.remove('hidden');
-        if (landingPage) landingPage.classList.add('hidden');
-        
+        // User eingeloggt -> Routing erfolgt in initializeForUser
         userBadge.classList.remove('hidden');
         userBadge.classList.add('flex');
         if (signInButton) signInButton.classList.add('hidden');
@@ -315,9 +320,10 @@ function setupAuthUi() {
         if (userEmail) userEmail.textContent = user.email ?? '';
         await initializeForUser(user);
       } else {
-        // User ausgeloggt -> Zeige Landing Page, verstecke App
+        // User ausgeloggt -> Zeige Landing Page, verstecke alles andere
         if (appContainer) appContainer.classList.add('hidden');
         if (landingPage) landingPage.classList.remove('hidden');
+        if (upsellGate) upsellGate.classList.add('hidden');
         
         userBadge.classList.add('hidden');
         userBadge.classList.remove('flex');
@@ -328,6 +334,8 @@ function setupAuthUi() {
         activeProjectId = null;
         activeProjectName = 'Persönliches Projekt';
         currentMembership = { role: 'viewer' };
+        userProfile = null; // Reset User-Profil
+        currentUserPlan = 'free'; // Reset Plan
         updateProjectLabel();
         toggleTeamSection(false);
         loadLocalData();
@@ -396,7 +404,9 @@ function setupWaitlistModal() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const emailInput = document.getElementById('waitlist-email');
+    const notifyCheckbox = document.getElementById('waitlist-notify');
     const email = emailInput?.value?.trim();
+    const notify = notifyCheckbox ? notifyCheckbox.checked : true;
     
     if (!email) {
       showToast('Bitte gib eine E-Mail-Adresse ein', 'error');
@@ -411,9 +421,11 @@ function setupWaitlistModal() {
     }
     
     try {
-      await saveToWaitlist(email);
+      await saveToWaitlist(email, notify);
       showToast('Du stehst auf der Liste! Wir melden uns.', 'success');
       closeWaitlistModal();
+      // Öffne Downsell-Modal nach erfolgreicher Warteliste
+      openDownsellModal();
     } catch (error) {
       console.error('Fehler beim Speichern in Warteliste:', error);
       showToast('Fehler beim Speichern. Bitte versuche es erneut.', 'error');
@@ -487,30 +499,280 @@ function setupUpgradeModal() {
   });
 }
 
-async function saveToWaitlist(email) {
+async function saveToWaitlist(email, notify = true) {
   try {
+    // Speichere in Warteliste-Collection
     await addDoc(collection(db, 'waitlist'), {
       email: email,
+      notify: notify,
       createdAt: serverTimestamp(),
       source: 'landing-page-pro-button',
       discount: 50 // 50% Rabatt
     });
-    console.log('✅ E-Mail erfolgreich zur Warteliste hinzugefügt:', email);
+    
+    // Wenn User eingeloggt ist, update User-Profil
+    if (currentUser) {
+      try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, {
+          isWaitlisted: true,
+          waitlistedAt: serverTimestamp()
+        }, { merge: true });
+        // Update lokale Variable
+        if (userProfile) {
+          userProfile.isWaitlisted = true;
+        }
+        console.log('✅ User-Profil aktualisiert: isWaitlisted = true');
+      } catch (profileError) {
+        console.error('⚠️ Fehler beim Update des User-Profils:', profileError);
+        // Nicht kritisch, Log nur
+      }
+    } else {
+      // Nicht eingeloggt: Speichere Flag im localStorage
+      localStorage.setItem('isWaitlisted', 'true');
+      console.log('✅ isWaitlisted Flag im localStorage gespeichert');
+    }
+    
+    console.log('✅ E-Mail erfolgreich zur Warteliste hinzugefügt:', email, 'Notify:', notify);
   } catch (error) {
     console.error('❌ Fehler beim Speichern in Warteliste:', error);
     throw error;
   }
 }
 
+// ============================================
+// USER PROFILE SYNC
+// ============================================
+
+async function syncUserProfile(user) {
+  console.log('[syncUserProfile] Start für User:', user.uid);
+  
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  
+  if (!userSnap.exists()) {
+    // Neues User-Profil erstellen
+    await setDoc(userRef, {
+      email: user.email ?? '',
+      plan: 'free',
+      isWaitlisted: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    userProfile = {
+      email: user.email ?? '',
+      plan: 'free',
+      isWaitlisted: false
+    };
+    console.log('[syncUserProfile] Neues User-Profil erstellt');
+  } else {
+    // Bestehendes Profil laden
+    const data = userSnap.data();
+    userProfile = {
+      email: data.email ?? user.email ?? '',
+      plan: data.plan ?? 'free',
+      isWaitlisted: data.isWaitlisted ?? false
+    };
+    // Synchronisiere currentUserPlan mit userProfile.plan
+    currentUserPlan = userProfile.plan;
+    console.log('[syncUserProfile] User-Profil geladen:', userProfile);
+  }
+  
+  // Prüfe localStorage für nicht eingeloggte Wartelisten-User
+  if (!userProfile.isWaitlisted && localStorage.getItem('isWaitlisted') === 'true') {
+    try {
+      await updateDoc(userRef, {
+        isWaitlisted: true,
+        waitlistedAt: serverTimestamp()
+      }, { merge: true });
+      userProfile.isWaitlisted = true;
+      localStorage.removeItem('isWaitlisted'); // Flag aufräumen
+      console.log('[syncUserProfile] isWaitlisted von localStorage übernommen');
+    } catch (error) {
+      console.error('[syncUserProfile] Fehler beim Update von isWaitlisted:', error);
+    }
+  }
+  
+  return userProfile;
+}
+
+// ============================================
+// UPSELL GATE (Für Free-User)
+// ============================================
+
+function setupUpsellGate() {
+  const upsellGate = document.getElementById('upsell-gate');
+  const upgradeBtn = document.getElementById('upsell-upgrade');
+  const continueBtn = document.getElementById('upsell-continue');
+  const appContainer = document.getElementById('app-container');
+  
+  if (!upsellGate || !upgradeBtn || !continueBtn) {
+    console.warn('Upsell Gate Elemente nicht gefunden');
+    return;
+  }
+  
+  // Upgrade Button -> Öffnet Warteliste-Modal
+  upgradeBtn.addEventListener('click', () => {
+    closeUpsellGate();
+    openWaitlistModal();
+  });
+  
+  // Continue Button -> Schließt Gate, zeigt App
+  continueBtn.addEventListener('click', async () => {
+    closeUpsellGate();
+    // Starte Projekt-Setup nur, wenn noch nicht initialisiert
+    if (currentUser) {
+      // Prüfe ob Projekt bereits initialisiert wurde
+      if (!activeProjectId) {
+        try {
+          // Nur Projekt-Setup ausführen (ohne Routing, da wir das Gate schon geschlossen haben)
+          await ensureOwnerProject(currentUser);
+          await resolveActiveProject(currentUser);
+          if (!activeProjectId) {
+            const defaultId = `${currentUser.uid}-personal`;
+            activeProjectId = defaultId;
+            await setActiveProject(defaultId);
+          }
+          watchIncomingInvites(currentUser);
+          toggleTeamSection(true);
+        } catch (error) {
+          console.error('Fehler beim Initialisieren nach Upsell Gate:', error);
+          showToast('Fehler beim Laden der App. Bitte aktualisiere die Seite.', 'error');
+        }
+      } else {
+        // Projekt bereits initialisiert, nur UI aktivieren
+        toggleTeamSection(true);
+      }
+    }
+  });
+}
+
+function closeUpsellGate() {
+  const upsellGate = document.getElementById('upsell-gate');
+  const appContainer = document.getElementById('app-container');
+  
+  if (upsellGate) {
+    upsellGate.classList.add('hidden');
+    upsellGate.classList.remove('flex');
+  }
+  
+  // Zeige App nach Gate
+  if (appContainer) {
+    appContainer.classList.remove('hidden');
+  }
+  
+  // Team-Section aktivieren
+  toggleTeamSection(true);
+}
+
+// ============================================
+// DOWNSELL MODAL (Nach Warteliste)
+// ============================================
+
+function openDownsellModal() {
+  const modal = document.getElementById('downsell-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+}
+
+function closeDownsellModal() {
+  const modal = document.getElementById('downsell-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+function setupDownsellModal() {
+  const modal = document.getElementById('downsell-modal');
+  const yesBtn = document.getElementById('btn-downsell-yes');
+  const noBtn = document.getElementById('btn-downsell-no');
+  
+  if (!modal || !yesBtn || !noBtn) {
+    console.warn('Downsell-Modal Elemente nicht gefunden');
+    return;
+  }
+  
+  // Close bei Klick auf Backdrop
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeDownsellModal();
+    }
+  });
+  
+  // Close bei ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      closeDownsellModal();
+    }
+  });
+  
+  // "Ja, kostenlos starten" Button -> Login
+  yesBtn.addEventListener('click', () => {
+    closeDownsellModal();
+    signInWithPopup(auth, googleProvider).catch((error) => {
+      console.error("Login Fehler:", error);
+      showToast("Login fehlgeschlagen: " + error.message, "error");
+    });
+  });
+  
+  // "Nein, ich warte" Button -> Schließt Modal
+  noBtn.addEventListener('click', () => {
+    closeDownsellModal();
+  });
+}
+
 async function initializeForUser(user) {
   console.log('[initializeForUser] START für User:', user.uid);
   
-  // SCHRITT 1: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
+  // SCHRITT 0: User-Profil synchronisieren
+  console.log('[initializeForUser] syncUserProfile...');
+  await syncUserProfile(user);
+  
+  // SCHRITT 1: Routing basierend auf User-Status
+  const appContainer = document.getElementById('app-container');
+  const landingPage = document.getElementById('landing-page');
+  const upsellGate = document.getElementById('upsell-gate');
+  
+  // Wartelisten-User: Zeige Danke-Toast
+  if (userProfile.isWaitlisted) {
+    // Prüfe Session Storage, um Toast nur einmal pro Session zu zeigen
+    const thanksShown = sessionStorage.getItem('waitlistThanksShown');
+    if (!thanksShown) {
+      showToast('👋 Danke für deine Geduld! Pro kommt bald. Hier ist dein Free-Zugang.', 'success');
+      sessionStorage.setItem('waitlistThanksShown', 'true');
+    }
+    // Zeige App direkt
+    if (appContainer) appContainer.classList.remove('hidden');
+    if (landingPage) landingPage.classList.add('hidden');
+    if (upsellGate) upsellGate.classList.add('hidden');
+  } 
+  // Free-User (nicht waitlisted): Zeige Upsell-Gate
+  else if (userProfile.plan === 'free' && !userProfile.isWaitlisted) {
+    if (upsellGate) {
+      upsellGate.classList.remove('hidden');
+      upsellGate.classList.add('flex');
+    }
+    if (appContainer) appContainer.classList.add('hidden');
+    if (landingPage) landingPage.classList.add('hidden');
+    toggleTeamSection(false); // Team-Section verstecken bis Gate geschlossen
+    return; // Früher Return, Projekt-Setup erfolgt später (wird beim Klick auf "Weiter" ausgelöst)
+  }
+  // Pro-User: Zeige App direkt
+  else if (userProfile.plan === 'pro') {
+    if (appContainer) appContainer.classList.remove('hidden');
+    if (landingPage) landingPage.classList.add('hidden');
+    if (upsellGate) upsellGate.classList.add('hidden');
+  }
+  
+  // SCHRITT 2: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
   // Wir warten nicht auf die Datenbank. Wenn der User da ist, zeig die Sektion!
   toggleTeamSection(true); 
 
   try {
-    // SCHRITT 2: Datenbank-Operationen
+    // SCHRITT 3: Datenbank-Operationen
     console.log('[initializeForUser] ensureOwnerProject...');
     await ensureOwnerProject(user);
     
@@ -2458,7 +2720,7 @@ function updateNavigationButtons(stepNumber) {
       if (button.id === 'btn-finish-project') {
         button.textContent = '🏁 Projekt abschließen & Neustart';
       } else {
-        button.textContent = 'Abschließen ✓';
+      button.textContent = 'Abschließen ✓';
       }
       button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
       button.classList.add('bg-green-600', 'hover:bg-green-700');
@@ -2490,7 +2752,7 @@ function setupHistoryPanel() {
         // Prüfe auth.currentUser als sicheren Fallback
         const user = currentUser || auth?.currentUser;
         if (user) {
-          loadHistory();
+        loadHistory();
         } else {
           const historyContent = document.getElementById('history-content');
           if (historyContent) {
@@ -2518,14 +2780,14 @@ function setupHistoryPanel() {
 }
 
 async function loadHistory() {
-  const historyContent = document.getElementById('history-content');
+    const historyContent = document.getElementById('history-content');
   if (!historyContent) return;
 
   // Prüfe auth.currentUser als sicheren Fallback
   const user = currentUser || auth?.currentUser;
   
   if (!user) {
-    historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
+      historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
     return;
   }
 
@@ -2667,7 +2929,7 @@ async function exportToPDF() {
   if (!checkFeatureAccess('pdf')) {
     return;
   }
-  
+
   const btn = document.getElementById('btn-export-pdf');
   const btnText = document.getElementById('text-export-pdf');
   const btnSpinner = document.getElementById('spinner-export-pdf');
@@ -2710,7 +2972,7 @@ async function exportToPDF() {
     const projectName = getText('activeProjectName') || 'Startup-Projekt';
     const date = new Date().toLocaleDateString('de-DE', { 
       day: 'numeric', 
-      month: 'long', 
+        month: 'long', 
       year: 'numeric' 
     });
 
