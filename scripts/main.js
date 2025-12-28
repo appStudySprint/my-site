@@ -804,17 +804,37 @@ function setupUpsellGate() {
         try {
           // Lade Projekte und öffne Modal (wie in initializeForUser)
           const projectsRef = collection(db, 'projects');
-          const q = query(
-            projectsRef,
-            where('ownerId', '==', currentUser.uid),
-            orderBy('updatedAt', 'desc')
-          );
-          const snapshot = await getDocs(q);
+          
+          // Versuche zuerst mit orderBy (benötigt Index)
+          let snapshot;
+          try {
+            const q = query(
+              projectsRef,
+              where('ownerId', '==', currentUser.uid),
+              orderBy('updatedAt', 'desc')
+            );
+            snapshot = await getDocs(q);
+          } catch (indexError) {
+            // Fallback: Lade alle Projekte ohne orderBy und sortiere im Client
+            console.warn('[setupUpsellGate] Index-Fehler, verwende Fallback:', indexError.message);
+            const q = query(
+              projectsRef,
+              where('ownerId', '==', currentUser.uid)
+            );
+            snapshot = await getDocs(q);
+          }
           
           userProjects = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
+          
+          // Sortiere im Client nach updatedAt (falls kein Index vorhanden)
+          userProjects.sort((a, b) => {
+            const aTime = a.updatedAt?.toMillis?.() || a.updatedAt?._seconds * 1000 || 0;
+            const bTime = b.updatedAt?.toMillis?.() || b.updatedAt?._seconds * 1000 || 0;
+            return bTime - aTime; // Neueste zuerst
+          });
           
           console.log('[setupUpsellGate] Gefundene Projekte:', userProjects.length);
           
