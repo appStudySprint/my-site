@@ -2050,7 +2050,7 @@ Antworte im Markdown-Format:
   }
 
   // Definiere btn, spinner, responseDiv GANZ OBEN
-  const btn = document.getElementById('btn-' + sectionName);
+  const btn = document.getElementById(config.buttonId);
   const spinner = document.getElementById(config.spinnerId);
   const responseDiv = document.getElementById(config.responseId);
   
