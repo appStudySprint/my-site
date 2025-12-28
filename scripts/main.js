@@ -957,17 +957,37 @@ async function initializeForUser(user) {
     // SCHRITT 3: Lade ALLE Projekte des Users
     console.log('[initializeForUser] Lade Projekte...');
     const projectsRef = collection(db, 'projects');
-    const q = query(
-      projectsRef,
-      where('ownerId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
-    );
-    const snapshot = await getDocs(q);
+    
+    // Versuche zuerst mit orderBy (benötigt Index)
+    let snapshot;
+    try {
+      const q = query(
+        projectsRef,
+        where('ownerId', '==', user.uid),
+        orderBy('updatedAt', 'desc')
+      );
+      snapshot = await getDocs(q);
+    } catch (indexError) {
+      // Fallback: Lade alle Projekte ohne orderBy und sortiere im Client
+      console.warn('[initializeForUser] Index-Fehler, verwende Fallback:', indexError.message);
+      const q = query(
+        projectsRef,
+        where('ownerId', '==', user.uid)
+      );
+      snapshot = await getDocs(q);
+    }
     
     userProjects = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+    
+    // Sortiere im Client nach updatedAt (falls kein Index vorhanden)
+    userProjects.sort((a, b) => {
+      const aTime = a.updatedAt?.toMillis?.() || a.updatedAt?._seconds * 1000 || 0;
+      const bTime = b.updatedAt?.toMillis?.() || b.updatedAt?._seconds * 1000 || 0;
+      return bTime - aTime; // Neueste zuerst
+    });
     
     console.log('[initializeForUser] Gefundene Projekte:', userProjects.length);
     
