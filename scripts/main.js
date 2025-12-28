@@ -3228,12 +3228,31 @@ async function exportToPDF() {
     showToast('Generiere Investment Memo...', 'success');
 
     // 2. Sammle ALLE Daten (auch aus nicht sichtbaren Steps)
-    const projectName = getText('activeProjectName') || 'Startup-Projekt';
+    const projectName = getText('activeProjectName') || activeProjectName || 'Startup-Projekt';
     const date = new Date().toLocaleDateString('de-DE', { 
       day: 'numeric', 
-        month: 'long', 
+      month: 'long', 
       year: 'numeric' 
     });
+    
+    // Score-Daten extrahieren
+    const finalScore = getText('score-value') || '-';
+    const finalVerdict = getText('score-verdict')?.replace(/"/g, '') || 'Noch nicht berechnet';
+    const marketScore = getText('score-market-value') || document.getElementById('score-market-bar')?.style.width || '0%';
+    const innovationScore = getText('score-innovation-value') || document.getElementById('score-innovation-bar')?.style.width || '0%';
+    const executionScore = getText('score-feasibility-value') || document.getElementById('score-feasibility-bar')?.style.width || '0%';
+    
+    // Extrahiere Zahlen aus Score-Strings (z.B. "45/100" -> 45)
+    const extractScoreNumber = (scoreStr) => {
+      if (!scoreStr || scoreStr === '-') return null;
+      const match = scoreStr.match(/(\d+)/);
+      return match ? parseInt(match[1]) : null;
+    };
+    
+    const scoreNum = extractScoreNumber(finalScore);
+    const marketNum = extractScoreNumber(marketScore);
+    const innovationNum = extractScoreNumber(innovationScore);
+    const executionNum = extractScoreNumber(executionScore);
 
     // 3. Erstelle Ghost-Element (Off-Screen Container)
     ghostElement = document.createElement('div');
@@ -3266,12 +3285,59 @@ async function exportToPDF() {
 
     // 5. Erstelle HTML-Content (Professionelles Investment-Memo Layout)
     ghostElement.innerHTML = `
-      <div style="border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;">
-        <h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #111827;">INVESTMENT MEMO</h1>
-        <p style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">
-          Projekt: <strong>${escapeHtml(projectName)}</strong> • Datum: ${date}
-        </p>
-      </div>
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+        
+        <!-- HEADER -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 40px;">
+            <div>
+                <h1 style="font-size: 28px; font-weight: 900; color: #111827; margin: 0; letter-spacing: -0.5px;">VENTURE REPORT</h1>
+                <p style="margin: 5px 0 0; color: #6b7280; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Algorithmic Due Diligence</p>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: bold; color: #2563eb;">${escapeHtml(projectName)}</div>
+                <div style="font-size: 12px; color: #9ca3af;">${date}</div>
+            </div>
+        </div>
+
+        <!-- SCORE CARD (Das Highlight) -->
+        ${scoreNum !== null ? `
+        <div style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%); border-radius: 12px; padding: 25px; margin-bottom: 40px; border: 2px solid #2563eb;">
+            <div style="display: flex; align-items: center; gap: 30px;">
+                <div style="text-align: center; min-width: 120px;">
+                    <div style="font-size: 48px; font-weight: 900; color: ${scoreNum >= 80 ? '#059669' : scoreNum >= 50 ? '#d97706' : '#dc2626'}; line-height: 1;">
+                        ${scoreNum}
+                    </div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">VC Score</div>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px;">Verdict</div>
+                    <div style="font-size: 16px; color: #111827; font-style: italic; line-height: 1.5;">"${escapeHtml(finalVerdict)}"</div>
+                    ${marketNum !== null || innovationNum !== null || executionNum !== null ? `
+                    <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                        ${marketNum !== null ? `
+                        <div style="text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${marketNum}</div>
+                            <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; margin-top: 3px;">Markt</div>
+                        </div>
+                        ` : ''}
+                        ${innovationNum !== null ? `
+                        <div style="text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #9333ea;">${innovationNum}</div>
+                            <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; margin-top: 3px;">Innovation</div>
+                        </div>
+                        ` : ''}
+                        ${executionNum !== null ? `
+                        <div style="text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #dc2626;">${executionNum}</div>
+                            <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; margin-top: 3px;">Umsetzung</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+        ` : ''}
 
       <!-- EXECUTIVE SUMMARY -->
       <div style="margin-bottom: 30px;">
@@ -3295,16 +3361,16 @@ async function exportToPDF() {
       </div>
 
       <!-- TARGET AUDIENCE -->
-      <div style="margin-bottom: 30px; page-break-inside: avoid;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           2. Zielgruppe & Psychologie
         </h2>
         <p style="margin-top: 10px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(getVal('persona_full'))}</p>
       </div>
 
       <!-- STRATEGY & MVP -->
-      <div style="margin-bottom: 30px; page-break-inside: avoid;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           3. Strategie & MVP
         </h2>
         <div style="margin-top: 10px;">
@@ -3320,8 +3386,8 @@ async function exportToPDF() {
       </div>
 
       <!-- VALIDIERUNG -->
-      <div style="margin-bottom: 30px; page-break-inside: avoid;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           4. Markt-Validierung
         </h2>
         <div style="margin-top: 10px;">
@@ -3334,8 +3400,8 @@ async function exportToPDF() {
 
       <!-- FINANCE & SCORING -->
       ${(price > 0 || fixedCosts > 0) ? `
-      <div style="margin-bottom: 30px; page-break-inside: avoid;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           5. Finanzplan
         </h2>
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 10px;">
@@ -3357,18 +3423,19 @@ async function exportToPDF() {
       ` : ''}
 
       <!-- VC VERDICT (KI-Analyse) -->
-      <div style="margin-bottom: 30px; page-break-inside: avoid;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           6. Risiko-Analyse (AI Vetted)
         </h2>
-        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; margin-top: 10px; font-size: 12px;">
+        <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 20px; margin-top: 10px; font-size: 12px; border-radius: 4px;">
           ${getHTML('response-hypothese')}
         </div>
       </div>
 
       <!-- FOOTER -->
-      <div style="margin-top: 40px; border-top: 2px solid #e5e7eb; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 10px;">
+      <div style="margin-top: 50px; border-top: 2px solid #e5e7eb; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 10px;">
         <p style="margin: 0;">Erstellt mit VentureValidator | ${date}</p>
+      </div>
       </div>
     `;
 
