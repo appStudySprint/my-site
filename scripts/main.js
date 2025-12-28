@@ -3852,6 +3852,105 @@ async function exportToPDF() {
 }
 
 // ============================================
+// PDF IMPORT FUNCTION (Restore from PDF)
+// ============================================
+
+async function handlePDFImport(event) {
+  const file = event.target.files[0];
+  if (!file) {
+    return;
+  }
+
+  // Prüfe, ob es eine PDF-Datei ist
+  if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+    showToast("Bitte wähle eine PDF-Datei aus", "error");
+    return;
+  }
+
+  if (!currentUser) {
+    showToast("Nicht eingeloggt!", "error");
+    return;
+  }
+
+  try {
+    showToast("PDF wird gelesen...", "info");
+
+    // Lese PDF mit PDF.js
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdfDocument = await loadingTask.promise;
+
+    // Lese Text von Seite 1
+    const page = await pdfDocument.getPage(1);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map(item => item.str).join(' ');
+
+    // Suche nach Backup-Daten
+    const startMarker = "###VENTURE_DATA_START###";
+    const endMarker = "###VENTURE_DATA_END###";
+    const startIndex = pageText.indexOf(startMarker);
+    const endIndex = pageText.indexOf(endMarker);
+
+    if (startIndex === -1 || endIndex === -1) {
+      showToast("Fehler: Kein VentureValidator-Backup in diesem PDF gefunden.", "error");
+      return;
+    }
+
+    // Extrahiere JSON-Daten
+    const jsonString = pageText.substring(startIndex + startMarker.length, endIndex);
+    const backupData = JSON.parse(jsonString);
+
+    console.log('[handlePDFImport] Backup-Daten gefunden:', backupData);
+
+    // Erstelle neues Projekt mit den wiederhergestellten Daten
+    const planFromProfile = userProfile?.plan || 'free';
+    const projectsRef = collection(db, 'projects');
+    const newProjectRef = await addDoc(projectsRef, {
+      ownerId: currentUser.uid,
+      name: `Wiederhergestellt ${new Date().toLocaleDateString('de-DE')}`,
+      plan: planFromProfile,
+      status: 'active',
+      fields: backupData.fields || {},
+      results: backupData.analysis || {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log('[handlePDFImport] Projekt wiederhergestellt:', newProjectRef.id);
+
+    // Erstelle Mitgliedschaft
+    await setDoc(doc(db, 'projects', newProjectRef.id, 'members', currentUser.uid), {
+      role: 'owner',
+      email: currentUser.email ?? '',
+      displayName: currentUser.displayName ?? '',
+      addedAt: serverTimestamp(),
+    }, { merge: true });
+
+    // Füge zum userProjects Array hinzu
+    userProjects.unshift({
+      id: newProjectRef.id,
+      name: `Wiederhergestellt ${new Date().toLocaleDateString('de-DE')}`,
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // Lade das Projekt
+    await loadProject(newProjectRef.id);
+
+    showToast("Projekt erfolgreich aus PDF wiederhergestellt!", "success");
+
+    // Reset File Input
+    event.target.value = '';
+
+  } catch (error) {
+    console.error('[handlePDFImport] Fehler:', error);
+    showToast("Fehler beim Import: " + error.message, "error");
+    event.target.value = '';
+  }
+}
+
+// ============================================
 // FINISH PROJECT FUNCTION
 // ============================================
 
