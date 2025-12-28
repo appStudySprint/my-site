@@ -3358,6 +3358,54 @@ function setupHistoryPanel() {
   const historyClose = document.getElementById('history-close');
   const historyPanel = document.getElementById('history-panel');
 
+  // Öffne Projekt-Gate-Modal statt History-Panel
+  const openProjectGate = async () => {
+    // Lade Projekte neu (falls nötig)
+    const user = currentUser || auth?.currentUser;
+    if (user) {
+      try {
+        const projectsRef = collection(db, 'projects');
+        
+        // Versuche zuerst mit orderBy (benötigt Index)
+        let snapshot;
+        try {
+          const q = query(
+            projectsRef,
+            where('ownerId', '==', user.uid),
+            orderBy('updatedAt', 'desc')
+          );
+          snapshot = await getDocs(q);
+        } catch (indexError) {
+          // Fallback: Lade alle Projekte ohne orderBy und sortiere im Client
+          console.warn('[setupHistoryPanel] Index-Fehler, verwende Fallback:', indexError.message);
+          const q = query(
+            projectsRef,
+            where('ownerId', '==', user.uid)
+          );
+          snapshot = await getDocs(q);
+        }
+        
+        userProjects = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Sortiere im Client nach updatedAt (falls kein Index vorhanden)
+        userProjects.sort((a, b) => {
+          const aTime = a.updatedAt?.toMillis?.() || a.updatedAt?._seconds * 1000 || 0;
+          const bTime = b.updatedAt?.toMillis?.() || b.updatedAt?._seconds * 1000 || 0;
+          return bTime - aTime; // Neueste zuerst
+        });
+      } catch (error) {
+        console.error('[setupHistoryPanel] Fehler beim Laden der Projekte:', error);
+      }
+    }
+    
+    // Öffne Projekt-Gate-Modal
+    await openProjectGateModal();
+  };
+
+  // Alte History-Panel-Funktion (für Fallback oder wenn History-Panel noch verwendet wird)
   const toggleHistory = () => {
     if (historyPanel) {
       const isHidden = historyPanel.classList.contains('hidden');
@@ -3386,12 +3434,14 @@ function setupHistoryPanel() {
     }
   };
 
+  // Verbinde Button mit Projekt-Gate-Modal
   if (historyButton) {
-    historyButton.addEventListener('click', toggleHistory);
+    historyButton.addEventListener('click', openProjectGate);
   }
   if (historyButtonAuthed) {
-    historyButtonAuthed.addEventListener('click', toggleHistory);
+    historyButtonAuthed.addEventListener('click', openProjectGate);
   }
+  // Close-Button für History-Panel (falls noch verwendet)
   if (historyClose) {
     historyClose.addEventListener('click', toggleHistory);
   }
