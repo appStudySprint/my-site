@@ -794,33 +794,37 @@ function setupUpsellGate() {
     console.warn('[setupUpsellGate] btn-upsell-pro nicht gefunden');
   }
   
-  // Skip Button -> Schließt Gate, zeigt App
+  // Skip Button -> Schließt Gate, zeigt App und öffnet Projekt-Gate-Modal
   if (btnUpsellSkip) {
     btnUpsellSkip.addEventListener('click', async () => {
       console.log('[setupUpsellGate] btn-upsell-skip geklickt');
       closeUpsellGate();
-      // Starte Projekt-Setup nur, wenn noch nicht initialisiert
+      // Starte Projekt-Setup mit Modal
       if (currentUser) {
-        // Prüfe ob Projekt bereits initialisiert wurde
-        if (!activeProjectId) {
-          try {
-            // Nur Projekt-Setup ausführen (ohne Routing, da wir das Gate schon geschlossen haben)
-            await ensureOwnerProject(currentUser);
-            await resolveActiveProject(currentUser);
-            if (!activeProjectId) {
-              const defaultId = `${currentUser.uid}-personal`;
-              activeProjectId = defaultId;
-              await setActiveProject(defaultId);
-            }
-            watchIncomingInvites(currentUser);
-            toggleTeamSection(true);
-          } catch (error) {
-            console.error('[setupUpsellGate] Fehler beim Initialisieren nach Upsell Gate:', error);
-            showToast('Fehler beim Laden der App. Bitte aktualisiere die Seite.', 'error');
-          }
-        } else {
-          // Projekt bereits initialisiert, nur UI aktivieren
-          toggleTeamSection(true);
+        try {
+          // Lade Projekte und öffne Modal (wie in initializeForUser)
+          const projectsRef = collection(db, 'projects');
+          const q = query(
+            projectsRef,
+            where('ownerId', '==', currentUser.uid),
+            orderBy('updatedAt', 'desc')
+          );
+          const snapshot = await getDocs(q);
+          
+          userProjects = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          console.log('[setupUpsellGate] Gefundene Projekte:', userProjects.length);
+          
+          // Öffne Projekt-Gate-Modal
+          await openProjectGateModal();
+          
+          watchIncomingInvites(currentUser);
+        } catch (error) {
+          console.error('[setupUpsellGate] Fehler beim Initialisieren nach Upsell Gate:', error);
+          showToast('Fehler beim Laden der App. Bitte aktualisiere die Seite.', 'error');
         }
       }
     });
