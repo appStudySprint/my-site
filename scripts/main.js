@@ -669,49 +669,71 @@ async function syncUserProfile(user) {
 
 function setupUpsellGate() {
   const upsellGate = document.getElementById('upsell-gate');
-  const upgradeBtn = document.getElementById('upsell-upgrade');
-  const continueBtn = document.getElementById('upsell-continue');
+  const btnUpsellPro = document.getElementById('btn-upsell-pro');
+  const btnUpsellSkip = document.getElementById('btn-upsell-skip');
   const appContainer = document.getElementById('app-container');
   
-  if (!upsellGate || !upgradeBtn || !continueBtn) {
-    console.warn('Upsell Gate Elemente nicht gefunden');
+  if (!upsellGate) {
+    console.warn('[setupUpsellGate] Upsell Gate nicht gefunden');
     return;
   }
   
-  // Upgrade Button -> Öffnet Warteliste-Modal
-  upgradeBtn.addEventListener('click', () => {
-    closeUpsellGate();
-    openWaitlistModal();
-  });
-  
-  // Continue Button -> Schließt Gate, zeigt App
-  continueBtn.addEventListener('click', async () => {
-    closeUpsellGate();
-    // Starte Projekt-Setup nur, wenn noch nicht initialisiert
-    if (currentUser) {
-      // Prüfe ob Projekt bereits initialisiert wurde
-      if (!activeProjectId) {
-        try {
-          // Nur Projekt-Setup ausführen (ohne Routing, da wir das Gate schon geschlossen haben)
-          await ensureOwnerProject(currentUser);
-          await resolveActiveProject(currentUser);
-          if (!activeProjectId) {
-            const defaultId = `${currentUser.uid}-personal`;
-            activeProjectId = defaultId;
-            await setActiveProject(defaultId);
-          }
-          watchIncomingInvites(currentUser);
-          toggleTeamSection(true);
-        } catch (error) {
-          console.error('Fehler beim Initialisieren nach Upsell Gate:', error);
-          showToast('Fehler beim Laden der App. Bitte aktualisiere die Seite.', 'error');
+  // Pro Button -> Öffnet Warteliste-Modal (fake-door-modal) UND schließt Gate
+  if (btnUpsellPro) {
+    btnUpsellPro.addEventListener('click', () => {
+      console.log('[setupUpsellGate] btn-upsell-pro geklickt');
+      closeUpsellGate();
+      // Öffne Warteliste-Modal (waitlist-modal)
+      const waitlistModal = document.getElementById('waitlist-modal');
+      if (waitlistModal) {
+        waitlistModal.classList.remove('hidden');
+        waitlistModal.classList.add('flex');
+        // Focus auf E-Mail Input
+        const emailInput = document.getElementById('waitlist-email');
+        if (emailInput) {
+          setTimeout(() => emailInput.focus(), 100);
         }
       } else {
-        // Projekt bereits initialisiert, nur UI aktivieren
-        toggleTeamSection(true);
+        console.error('[setupUpsellGate] waitlist-modal nicht gefunden');
       }
-    }
-  });
+    });
+  } else {
+    console.warn('[setupUpsellGate] btn-upsell-pro nicht gefunden');
+  }
+  
+  // Skip Button -> Schließt Gate, zeigt App
+  if (btnUpsellSkip) {
+    btnUpsellSkip.addEventListener('click', async () => {
+      console.log('[setupUpsellGate] btn-upsell-skip geklickt');
+      closeUpsellGate();
+      // Starte Projekt-Setup nur, wenn noch nicht initialisiert
+      if (currentUser) {
+        // Prüfe ob Projekt bereits initialisiert wurde
+        if (!activeProjectId) {
+          try {
+            // Nur Projekt-Setup ausführen (ohne Routing, da wir das Gate schon geschlossen haben)
+            await ensureOwnerProject(currentUser);
+            await resolveActiveProject(currentUser);
+            if (!activeProjectId) {
+              const defaultId = `${currentUser.uid}-personal`;
+              activeProjectId = defaultId;
+              await setActiveProject(defaultId);
+            }
+            watchIncomingInvites(currentUser);
+            toggleTeamSection(true);
+          } catch (error) {
+            console.error('[setupUpsellGate] Fehler beim Initialisieren nach Upsell Gate:', error);
+            showToast('Fehler beim Laden der App. Bitte aktualisiere die Seite.', 'error');
+          }
+        } else {
+          // Projekt bereits initialisiert, nur UI aktivieren
+          toggleTeamSection(true);
+        }
+      }
+    });
+  } else {
+    console.warn('[setupUpsellGate] btn-upsell-skip nicht gefunden');
+  }
 }
 
 function closeUpsellGate() {
@@ -1668,8 +1690,8 @@ function showToast(message, type = 'success') {
   const bgColor = isError ? 'bg-red-600/95' : isWarning ? 'bg-yellow-600/95' : 'bg-emerald-600/95';
   const icon = isError ? '❌' : isWarning ? '⚠️' : '✓';
   
-  // Toast oben rechts, unter dem Header, mit extrem hohem Z-Index
-  toast.className = `fixed top-24 right-5 z-[9999] ${bgColor} text-white border border-white/20 backdrop-blur-sm px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 transform translate-x-[500px] transition-transform duration-300`;
+  // Toast unten rechts, sicher im Bild, mit extrem hohem Z-Index
+  toast.className = `fixed bottom-6 right-6 z-[9999] ${bgColor} text-white border border-white/20 backdrop-blur-sm px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 transform translate-x-[500px] transition-transform duration-300 max-w-sm`;
   toast.innerHTML = `
     <span class="text-2xl">${icon}</span>
     <span class="font-medium text-white">${message}</span>

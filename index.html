@@ -56,40 +56,27 @@
 <body class="min-h-screen bg-gray-950 text-gray-200">
     
     <!-- Upsell Gate (Für Free-User ohne Warteliste) -->
-    <div id="upsell-gate" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md px-4">
-        <div class="max-w-4xl w-full mx-4">
-            <div class="glass-panel p-12 rounded-lg border border-gray-700 shadow-2xl">
-                <div class="text-center mb-10">
-                    <div class="text-6xl mb-6">🤔</div>
-                    <h1 class="text-4xl font-bold text-white mb-4">Meinung geändert?</h1>
-                    <p class="text-xl text-gray-400 mb-8">Bist du es satt, nur <strong class="text-orange-400">1 Analyse pro Monat</strong> zu haben?</p>
-                </div>
-                
-                <div class="grid md:grid-cols-2 gap-6">
-                    <!-- Upgrade Option -->
-                    <div class="glass-panel p-8 rounded-lg border-2 border-emerald-500/50 hover:border-emerald-500 transition-all cursor-pointer group" id="upsell-upgrade">
-                        <div class="text-center">
-                            <div class="text-4xl mb-4">🚀</div>
-                            <h2 class="text-2xl font-bold text-white mb-3">Ja, ich will Pro</h2>
-                            <p class="text-gray-400 mb-4 text-sm">Upgrade auf den Founder-Plan</p>
-                            <div class="bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 group-hover:scale-105">
-                                Upgrade
-                            </div>
-                        </div>
+    <div id="upsell-gate" class="hidden fixed inset-0 z-[60] bg-dark-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full p-8 rounded-2xl text-center border border-brand-500/30 shadow-2xl shadow-brand-500/20">
+            <h2 class="text-4xl font-bold text-white mb-4">Meinung geändert? 🤔</h2>
+            <p class="text-xl text-gray-300 mb-8">Du nutzt aktuell den limitierten <span class="text-gray-400 font-mono">Free-Plan</span> (1 Analyse/Monat).</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Option Pro -->
+                <button id="btn-upsell-pro" class="group relative bg-gradient-to-br from-brand-600 to-brand-400 p-1 rounded-xl hover:scale-[1.02] transition-transform">
+                    <div class="bg-dark-900 rounded-lg p-6 h-full flex flex-col items-center justify-center">
+                        <span class="text-2xl mb-2">💎</span>
+                        <span class="font-bold text-white text-lg">Ja, ich will Pro</span>
+                        <span class="text-xs text-brand-300 mt-2">Unbegrenzte Power</span>
                     </div>
-                    
-                    <!-- Weiter zur Free Version -->
-                    <div class="glass-panel p-8 rounded-lg border border-gray-700 hover:border-gray-600 transition-all cursor-pointer group" id="upsell-continue">
-                        <div class="text-center">
-                            <div class="text-4xl mb-4">👋</div>
-                            <h2 class="text-2xl font-bold text-white mb-3">Nein, weiter zur Free-Version</h2>
-                            <p class="text-gray-400 mb-4 text-sm">Ich nutze die kostenlose Version weiter</p>
-                            <div class="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 group-hover:scale-105">
-                                Weiter
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                </button>
+
+                <!-- Option Free -->
+                <button id="btn-upsell-skip" class="group bg-dark-800 border border-white/10 rounded-xl p-6 hover:bg-dark-700 transition-colors">
+                    <span class="text-2xl mb-2 block">🐢</span>
+                    <span class="font-bold text-gray-400 group-hover:text-white">Nein, weiter kostenlos</span>
+                    <span class="text-xs text-gray-500 mt-2 block">Basis-Funktionen</span>
+                </button>
             </div>
         </div>
     </div>
