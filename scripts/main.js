@@ -1648,6 +1648,25 @@ function getCurrentFieldValues() {
   }, {});
 }
 
+// Sammle Analyse-Daten aus dem aktuellen Projekt-Dokument
+async function getAnalysisData() {
+  if (!activeProjectId || !projectDocRef) {
+    return {};
+  }
+  
+  try {
+    const projectSnap = await getDoc(projectDocRef);
+    if (projectSnap.exists()) {
+      const data = projectSnap.data();
+      return data.results || {};
+    }
+  } catch (error) {
+    console.error('[getAnalysisData] Fehler:', error);
+  }
+  
+  return {};
+}
+
 function autosizeAll() {
   fieldIds.forEach((id) => {
     const element = document.getElementById(id);
@@ -3264,6 +3283,20 @@ function setupProjectGateModal() {
       if (createForm) createForm.classList.add('hidden');
       if (createSection) createSection.classList.remove('hidden');
       if (nameInput) nameInput.value = '';
+    });
+  }
+
+  // PDF Import Button
+  const btnImportPdf = document.getElementById('btn-import-pdf');
+  const pdfUpload = document.getElementById('pdf-upload');
+  
+  if (btnImportPdf && pdfUpload) {
+    btnImportPdf.addEventListener('click', () => {
+      pdfUpload.click();
+    });
+    
+    pdfUpload.addEventListener('change', (event) => {
+      handlePDFImport(event);
     });
   }
 }

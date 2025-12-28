@@ -42,6 +42,10 @@
     <!-- html2pdf for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
+    <!-- PDF.js for PDF Import/Reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    
     <!-- Gremlins.js (Chaos Testing) -->
     <script src="https://unpkg.com/gremlins.js"></script>
     <!-- Sentry (Error Logging - Dummy DSN für Demo, loggt in Konsole wenn nicht konfiguriert) -->
@@ -916,10 +920,14 @@
             </div>
 
             <!-- Neues Projekt Button -->
-            <div id="project-create-section">
+            <div id="project-create-section" class="space-y-3">
                 <button id="btn-create-project-ui" class="w-full bg-gradient-to-r from-brand-600 to-brand-400 hover:from-brand-700 hover:to-brand-500 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
                     ➕ Neues Projekt erstellen
                 </button>
+                <button id="btn-import-pdf" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                    📂 Aus PDF wiederherstellen
+                </button>
+                <input type="file" id="pdf-upload" accept="application/pdf" class="hidden">
             </div>
 
             <!-- Verstecktes Formular zum Erstellen -->
