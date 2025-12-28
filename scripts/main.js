@@ -992,29 +992,41 @@ async function ensureOwnerProject(user) {
   const projectId = `${user.uid}-personal`;
   const ref = doc(db, 'projects', projectId);
   const snapshot = await getDoc(ref);
+  
+  // Hole Plan aus userProfile (korrekte Quelle)
+  const planFromProfile = userProfile?.plan || 'free';
+  
   if (!snapshot.exists()) {
     const initialFields = getCurrentFieldValues();
     await setDoc(ref, {
       ownerId: user.uid,
       name: 'Persönliches Projekt',
-      plan: 'free', // Standard-Plan ist 'free'
+      plan: planFromProfile, // Verwende Plan aus userProfile
       fields: initialFields,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    console.log('[ensureOwnerProject] Neues Projekt erstellt mit plan: free');
-    currentUserPlan = 'free';
+    console.log('[ensureOwnerProject] Neues Projekt erstellt mit plan:', planFromProfile);
+    currentUserPlan = planFromProfile;
   } else {
     // Lade Plan aus bestehendem Projekt
     const data = snapshot.data();
     if (data.plan) {
       currentUserPlan = data.plan;
-      console.log('[ensureOwnerProject] Plan geladen:', currentUserPlan);
+      console.log('[ensureOwnerProject] Plan aus Projekt geladen:', currentUserPlan);
     } else {
-      // Fallback: Setze Plan auf 'free' wenn nicht vorhanden
-      await updateDoc(ref, { plan: 'free' });
-      currentUserPlan = 'free';
-      console.log('[ensureOwnerProject] Plan auf free gesetzt (Fallback)');
+      // Fallback: Prüfe zuerst userProfile (korrekte Quelle)
+      if (userProfile && userProfile.plan) {
+        currentUserPlan = userProfile.plan;
+        console.log('[ensureOwnerProject] Plan aus userProfile geladen:', currentUserPlan);
+        // Synchronisiere Plan im Projekt-Dokument
+        await updateDoc(ref, { plan: userProfile.plan });
+      } else {
+        // Fallback: Setze Plan auf 'free' wenn nicht vorhanden
+        await updateDoc(ref, { plan: 'free' });
+        currentUserPlan = 'free';
+        console.log('[ensureOwnerProject] Plan auf free gesetzt (Fallback)');
+      }
     }
   }
   await setDoc(doc(db, 'projects', projectId, 'members', user.uid), {
