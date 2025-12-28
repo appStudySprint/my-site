@@ -946,44 +946,34 @@ async function initializeForUser(user) {
     if (upsellGate) upsellGate.classList.add('hidden');
   }
   
-  // SCHRITT 2: SOFORTIGE UI-AKTIVIERUNG (Optimistisch)
-  // Wir warten nicht auf die Datenbank. Wenn der User da ist, zeig die Sektion!
-  toggleTeamSection(true); 
+  // SCHRITT 2: Verstecke Wizard bis Projekt geladen
+  hideWizardUntilProjectLoaded();
 
   try {
-    // SCHRITT 3: Datenbank-Operationen
-    console.log('[initializeForUser] resolveActiveProject...');
-    await resolveActiveProject(user);
+    // SCHRITT 3: Lade ALLE Projekte des Users
+    console.log('[initializeForUser] Lade Projekte...');
+    const projectsRef = collection(db, 'projects');
+    const q = query(
+      projectsRef,
+      where('ownerId', '==', user.uid),
+      orderBy('updatedAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
     
-    console.log('[initializeForUser] activeProjectId nach resolveActiveProject:', activeProjectId);
+    userProjects = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
     
-    // KRITISCH: Prüfe ob activeProjectId wirklich gesetzt wurde
-    if (!activeProjectId) {
-      console.error('[initializeForUser] FEHLER: activeProjectId ist NULL nach resolveActiveProject!');
-      const defaultId = `${user.uid}-personal`;
-      console.log('[initializeForUser] Setze activeProjectId manuell auf:', defaultId);
-      activeProjectId = defaultId;
-      await setActiveProject(defaultId);
-    }
+    console.log('[initializeForUser] Gefundene Projekte:', userProjects.length);
     
-    console.log('[initializeForUser] FINAL activeProjectId:', activeProjectId);
-    console.log('[initializeForUser] projectDocRef:', projectDocRef?.id);
+    // SCHRITT 4: Öffne IMMER das Projekt-Gate-Modal
+    await openProjectGateModal();
     
     watchIncomingInvites(user);
     
-    console.log('[initializeForUser] ERFOLG - Initialisierung abgeschlossen');
-    
   } catch (error) {
-    // SCHRITT 3: Fehler sichtbar machen
     console.error('[initializeForUser] FEHLER bei der Initialisierung:', error);
-    console.error('[initializeForUser] Error Details:', {
-      code: error.code,
-      message: error.message,
-      stack: error.stack
-    });
-    
-    // WICHTIG: Wir zeigen den Fehler jetzt direkt auf dem Bildschirm an via Toast.
-    // So wissen wir SOFORT, ob es an den Regeln oder der Verbindung liegt.
     showToast("Initialisierungs-Fehler: " + error.message, 'error');
   }
 }
@@ -1069,6 +1059,9 @@ function hideWizardUntilProjectLoaded() {
 
 // Zeige Wizard nach Projekt-Laden
 function showWizardAfterProjectLoaded() {
+  // Stelle sicher, dass Wizard-Container sichtbar ist
+  const wizardContainer = document.querySelector('.wizard-container') || document.querySelector('[class*="wizard"]');
+  
   if (currentStep >= 1 && currentStep <= totalSteps) {
     showStep(currentStep);
   } else {
