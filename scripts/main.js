@@ -30,6 +30,17 @@ import {
  * @returns {object} - { text: string, sources?: array } - Antwort mit optionalen Quellen
  */
 async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
+  // Sicherung: Blockiere API-Calls während Chaos-Tests, um Quota zu schützen
+  if (isChaosMode) {
+    console.warn("🔒 API Call blockiert durch Chaos-Mode (Quota Schutz).");
+    showToast("🤖 API Call simuliert (Chaos Mode)", "warning");
+    // Simuliere eine Antwort nach 500ms
+    await new Promise(r => setTimeout(r, 500));
+    return { 
+      candidates: [{ content: { parts: [{ text: "Dies ist eine simulierte Antwort im Chaos-Modus, um Kosten zu sparen." }] } }] 
+    };
+  }
+
   try {
     const requestBody = {
         contents: [{
@@ -175,6 +186,7 @@ let currentUser = null;
 let currentUserPlan = 'free'; // 'free' oder 'pro'
 let userProfile = null; // User-Profil aus Firestore (email, plan, isWaitlisted)
 let projectDocRef = null;
+let isChaosMode = false; // Flag zum Blockieren von API-Calls während Chaos-Tests
 let unsubscribeProject = null;
 let unsubscribeMembers = null;
 let unsubscribePendingInvites = null;
@@ -3361,6 +3373,8 @@ function startChaosMonkey() {
   const confirmChaos = confirm("ACHTUNG: Dies startet 1000 zufällige Klicks (Gremlins). Die Seite wird wild flackern. Fortfahren?");
   if (!confirmChaos) return;
 
+  // Aktiviere Chaos-Mode (blockiert API-Calls)
+  isChaosMode = true;
   showToast("👾 Gremlins freigelassen! Check die Konsole.", "warning");
 
   gremlins.createHorde({
@@ -3382,9 +3396,11 @@ function startChaosMonkey() {
     ]
   }).unleash()
   .then(() => {
+    isChaosMode = false; // Chaos-Mode deaktivieren
     showToast("✅ Chaos-Test überlebt!", "success");
   })
   .catch((err) => {
+    isChaosMode = false; // Chaos-Mode auch bei Fehler deaktivieren
     console.error("CRASH DURCH BOT:", err);
     showToast("❌ App gecrasht! Siehe Konsole.", "error");
     // Hier würde man den Fehler an Sentry senden
