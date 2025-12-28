@@ -498,7 +498,7 @@ function setupWaitlistModal() {
       // Szenario A: E-Mail bereits vorhanden
       if (!waitlistSnap.empty) {
         console.log('[setupWaitlistModal] E-Mail bereits auf Warteliste:', email);
-        showToast('Vielen Dank für dein Vertrauen! Du bist bereits auf der Liste.', 'success');
+        showToast('Du stehst bereits auf der Liste! Danke für dein Vertrauen.', 'success');
         
         // Warteliste Modal hart schließen
         modal.classList.add('hidden');
@@ -656,75 +656,62 @@ async function syncUserProfile(user) {
   const userRef = doc(db, 'users', user.uid);
   const userSnap = await getDoc(userRef);
   
-  if (!userSnap.exists()) {
-    // Neues User-Profil: Prüfe zuerst, ob E-Mail auf Warteliste steht
-    let isOnWaitlist = false;
-    
-    if (user.email) {
-      try {
-        const waitlistQuery = query(
-          collection(db, 'waitlist'),
-          where('email', '==', user.email)
-        );
-        const waitlistSnap = await getDocs(waitlistQuery);
-        isOnWaitlist = !waitlistSnap.empty;
-        console.log('[syncUserProfile] Wartelisten-Prüfung für', user.email, ':', isOnWaitlist);
-      } catch (error) {
-        console.error('[syncUserProfile] Fehler bei Wartelisten-Prüfung:', error);
-        // Im Fehlerfall: false (sicherer Default)
-      }
+  // IMMER parallel prüfen: Steht user.email in der waitlist Collection?
+  let isWaitlisted = false;
+  if (user.email) {
+    try {
+      const waitlistQuery = query(
+        collection(db, 'waitlist'),
+        where('email', '==', user.email)
+      );
+      const waitlistSnap = await getDocs(waitlistQuery);
+      isWaitlisted = !waitlistSnap.empty;
+      console.log('[syncUserProfile] Wartelisten-Prüfung für', user.email, ':', isWaitlisted);
+    } catch (error) {
+      console.error('[syncUserProfile] Fehler bei Wartelisten-Prüfung:', error);
+      // Im Fehlerfall: false (sicherer Default)
     }
-    
-    // Erstelle User-Doc mit korrektem isWaitlisted Status
+  }
+  
+  if (!userSnap.exists()) {
+    // Neues User-Doc erstellen mit korrektem isWaitlisted Status
     await setDoc(userRef, {
       email: user.email ?? '',
       plan: 'free',
-      isWaitlisted: isOnWaitlist, // Nur true, wenn er wirklich auf der Warteliste steht!
+      isWaitlisted: isWaitlisted, // Korrekt basierend auf waitlist Collection
       createdAt: serverTimestamp()
     });
     
     userProfile = {
       email: user.email ?? '',
       plan: 'free',
-      isWaitlisted: isOnWaitlist
+      isWaitlisted: isWaitlisted
     };
     
-    console.log('[syncUserProfile] Neues User-Profil erstellt mit isWaitlisted:', isOnWaitlist);
+    console.log('[syncUserProfile] Neues User-Profil erstellt mit isWaitlisted:', isWaitlisted);
   } else {
-    // Bestehendes Profil laden
+    // Bestehendes Profil: Update isWaitlisted basierend auf waitlist Collection
     const data = userSnap.data();
+    
+    // Update User-Doc, falls isWaitlisted sich geändert hat
+    if (data.isWaitlisted !== isWaitlisted) {
+      await updateDoc(userRef, {
+        isWaitlisted: isWaitlisted,
+        ...(isWaitlisted && !data.waitlistedAt ? { waitlistedAt: serverTimestamp() } : {})
+      }, { merge: true });
+      console.log('[syncUserProfile] isWaitlisted aktualisiert:', data.isWaitlisted, '->', isWaitlisted);
+    }
+    
     userProfile = {
       email: data.email ?? user.email ?? '',
       plan: data.plan ?? 'free',
-      isWaitlisted: data.isWaitlisted ?? false
+      isWaitlisted: isWaitlisted // Verwende immer den aktuellen Wert aus waitlist Collection
     };
     
     // Synchronisiere currentUserPlan mit userProfile.plan
     currentUserPlan = userProfile.plan;
     
-    // Optional: Update isWaitlisted, falls sich User nachträglich eingetragen hat
-    if (!userProfile.isWaitlisted && user.email) {
-      try {
-        const waitlistQuery = query(
-          collection(db, 'waitlist'),
-          where('email', '==', user.email)
-        );
-        const waitlistSnap = await getDocs(waitlistQuery);
-        if (!waitlistSnap.empty) {
-          // User steht jetzt auf Warteliste -> Update
-          await updateDoc(userRef, {
-            isWaitlisted: true,
-            waitlistedAt: serverTimestamp()
-          }, { merge: true });
-          userProfile.isWaitlisted = true;
-          console.log('[syncUserProfile] isWaitlisted auf true aktualisiert (nachträgliche Eintragung erkannt)');
-        }
-      } catch (error) {
-        console.error('[syncUserProfile] Fehler bei nachträglicher Wartelisten-Prüfung:', error);
-      }
-    }
-    
-    console.log('[syncUserProfile] User-Profil geladen:', userProfile);
+    console.log('[syncUserProfile] User-Profil geladen/synchronisiert:', userProfile);
   }
   
   return userProfile;
@@ -880,9 +867,9 @@ function setupDownsellModal() {
 async function initializeForUser(user) {
   console.log('[initializeForUser] START für User:', user.uid);
   
-  // SCHRITT 0: User-Profil synchronisieren
+  // SCHRITT 0: User-Profil synchronisieren (prüft IMMER waitlist Collection)
   console.log('[initializeForUser] syncUserProfile...');
-  await syncUserProfile(user);
+  const profile = await syncUserProfile(user);
   
   // SCHRITT 1: Routing basierend auf User-Status
   const appContainer = document.getElementById('app-container');
@@ -890,11 +877,11 @@ async function initializeForUser(user) {
   const upsellGate = document.getElementById('upsell-gate');
   
   // Wartelisten-User: Zeige Danke-Toast
-  if (userProfile.isWaitlisted) {
+  if (profile.isWaitlisted) {
     // Prüfe Session Storage, um Toast nur einmal pro Session zu zeigen
     const thanksShown = sessionStorage.getItem('waitlistThanksShown');
     if (!thanksShown) {
-      showToast('👋 Danke für deine Geduld! Pro kommt bald. Hier ist dein Free-Zugang.', 'success');
+      showToast('👋 Willkommen zurück! Danke für deine Geduld bei der Pro-Version.', 'success');
       sessionStorage.setItem('waitlistThanksShown', 'true');
     }
     // Zeige App direkt
@@ -903,7 +890,7 @@ async function initializeForUser(user) {
     if (upsellGate) upsellGate.classList.add('hidden');
   } 
   // Free-User (nicht waitlisted): Zeige Upsell-Gate
-  else if (userProfile.plan === 'free' && !userProfile.isWaitlisted) {
+  else if (profile.plan === 'free' && !profile.isWaitlisted) {
     if (upsellGate) {
       upsellGate.classList.remove('hidden');
       upsellGate.classList.add('flex');
@@ -914,7 +901,7 @@ async function initializeForUser(user) {
     return; // Früher Return, Projekt-Setup erfolgt später (wird beim Klick auf "Weiter" ausgelöst)
   }
   // Pro-User: Zeige App direkt
-  else if (userProfile.plan === 'pro') {
+  else if (profile.plan === 'pro') {
     if (appContainer) appContainer.classList.remove('hidden');
     if (landingPage) landingPage.classList.add('hidden');
     if (upsellGate) upsellGate.classList.add('hidden');
