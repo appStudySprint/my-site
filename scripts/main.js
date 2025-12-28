@@ -3560,3 +3560,75 @@ function debounce(func, timeout = 300) {
     }, timeout);
   };
 }
+
+// ============================================
+// ADMIN FUNKTION: User auf Pro upgraden
+// ============================================
+
+async function upgradeUserToPro(email) {
+  try {
+    console.log('[upgradeUserToPro] Suche User mit Email:', email);
+    
+    // Suche User über Email in der users Collection
+    // Da users/{uid} als Struktur, müssen wir alle User durchsuchen
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
+    
+    let userUid = null;
+    usersSnapshot.forEach((docSnap) => {
+      const userData = docSnap.data();
+      if (userData.email === email || userData.email?.toLowerCase() === email.toLowerCase()) {
+        userUid = docSnap.id; // uid ist die Dokument-ID
+        console.log('[upgradeUserToPro] User gefunden:', userUid);
+      }
+    });
+    
+    if (!userUid) {
+      console.error('[upgradeUserToPro] User nicht gefunden:', email);
+      return false;
+    }
+    
+    // Update User-Dokument auf Pro
+    const userRef = doc(db, 'users', userUid);
+    await updateDoc(userRef, {
+      plan: 'pro',
+      upgradedAt: serverTimestamp()
+    });
+    console.log('[upgradeUserToPro] User-Dokument auf Pro upgegraded:', userUid);
+    
+    // Entferne lastAnalysisAt aus allen Projekten dieses Users (Projekte haben ownerId = uid)
+    const projectsRef = collection(db, 'projects');
+    const projectsQuery = query(projectsRef, where('ownerId', '==', userUid));
+    const projectsSnapshot = await getDocs(projectsQuery);
+    
+    const projectPromises = [];
+    projectsSnapshot.forEach((projectDoc) => {
+      const projectRef = doc(db, 'projects', projectDoc.id);
+      projectPromises.push(
+        updateDoc(projectRef, {
+          plan: 'pro',
+          lastAnalysisAt: null // Entferne Limit für unbegrenzte Analysen
+        })
+      );
+      console.log('[upgradeUserToPro] Projekt aktualisiert:', projectDoc.id);
+    });
+    
+    await Promise.all(projectPromises);
+    
+    console.log('[upgradeUserToPro] ERFOLG - User auf Pro upgegraded mit unbegrenzten Analysen:', email);
+    return true;
+  } catch (error) {
+    console.error('[upgradeUserToPro] FEHLER:', error);
+    return false;
+  }
+}
+
+// Einmalig ausführen für rhynxpvp1@gmail.com (beim Seitenladen)
+(async () => {
+  if (typeof window !== 'undefined') {
+    // Führe nach kurzer Verzögerung aus (damit Firebase initialisiert ist)
+    setTimeout(async () => {
+      await upgradeUserToPro('rhynxpvp1@gmail.com');
+    }, 2000);
+  }
+})();
