@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     
-  showStep(1); // Starte mit Schritt 1
+  // Wizard wird erst nach Projekt-Laden angezeigt (in initializeForUser)
   } catch (error) {
     console.error('[DOMContentLoaded] Fehler bei Initialisierung:', error);
   }
@@ -1120,6 +1120,15 @@ async function createNewProjectUI(name) {
       addedAt: serverTimestamp(),
     }, { merge: true });
     
+    // Füge zum userProjects Array hinzu
+    userProjects.unshift({
+      id: newProjectRef.id,
+      name: name.trim(),
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
     // Lade das Projekt und schließe Modal
     await loadProject(newProjectRef.id);
     
@@ -1153,6 +1162,9 @@ async function loadProject(projectId) {
     showToast("Fehler beim Laden: " + error.message, "error");
   }
 }
+
+// Mache loadProject global verfügbar für onclick-Handler
+window.loadProject = loadProject;
 
 async function resolveActiveProject(user) {
   console.log('[resolveActiveProject] START für User:', user.uid);
