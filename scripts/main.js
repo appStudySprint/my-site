@@ -240,6 +240,36 @@ document.addEventListener('DOMContentLoaded', () => {
       finishButton.addEventListener('click', finishProject);
     }
     
+    // Confirm Limit Modal Buttons Setup
+    const confirmLimitYesBtn = document.getElementById('confirm-limit-yes');
+    const confirmLimitNoBtn = document.getElementById('confirm-limit-no');
+    
+    if (confirmLimitYesBtn) {
+      confirmLimitYesBtn.addEventListener('click', () => {
+        if (window.analysisResolver) {
+          window.analysisResolver(true);
+        }
+        const modal = document.getElementById('confirm-limit-modal');
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+      });
+    }
+    
+    if (confirmLimitNoBtn) {
+      confirmLimitNoBtn.addEventListener('click', () => {
+        if (window.analysisResolver) {
+          window.analysisResolver(false);
+        }
+        const modal = document.getElementById('confirm-limit-modal');
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+      });
+    }
+    
     showStep(1); // Starte mit Schritt 1
   } catch (error) {
     console.error('[DOMContentLoaded] Fehler bei Initialisierung:', error);
@@ -1198,6 +1228,8 @@ function bindFieldListeners() {
   console.log('[bindFieldListeners] activeProjectId:', activeProjectId);
   console.log('[bindFieldListeners] projectDocRef:', projectDocRef);
   
+  const saveStatus = document.getElementById('save-status');
+  
   fieldIds.forEach((id) => {
     const element = document.getElementById(id);
     if (!element) {
@@ -1213,6 +1245,45 @@ function bindFieldListeners() {
     element.dataset.bound = 'true';
     console.log(`[bindFieldListeners] Binde Listener für "${id}"`);
     
+    // Erstelle debounced Save-Funktion für dieses Feld (1000ms Delay)
+    const debouncedSave = debounce(async () => {
+      if (isApplyingRemoteData) {
+        console.log(`[bindFieldListeners] Ignoriere Save für "${id}" - Remote-Daten werden angewendet`);
+        return;
+      }
+
+      if (currentUser && projectDocRef && activeProjectId) {
+        console.log(`[bindFieldListeners] Speichere Feld "${id}" in Firestore`);
+        pendingRemoteUpdates[id] = element.value;
+        
+        // Führe updateDoc aus
+        try {
+          const updates = {};
+          updates[`fields.${id}`] = element.value;
+          await updateDoc(projectDocRef, {
+            ...updates,
+            updatedAt: serverTimestamp(),
+            lastEditor: currentUser.uid,
+          });
+          
+          // Erfolg: Zeige "Gespeichert"
+          if (saveStatus) {
+            saveStatus.textContent = 'Gespeichert';
+            saveStatus.style.color = 'green';
+          }
+        } catch (error) {
+          console.error(`[bindFieldListeners] Fehler beim Speichern von "${id}":`, error);
+          if (saveStatus) {
+            saveStatus.textContent = 'Fehler';
+            saveStatus.style.color = 'red';
+          }
+        }
+      } else {
+        console.log(`[bindFieldListeners] Speichere Feld "${id}" lokal (kein User/Project)`);
+        throttledLocalSave();
+      }
+    }, 1000);
+    
     element.addEventListener('input', () => {
       console.log(`[bindFieldListeners] Input Event für "${id}"`, element.value.substring(0, 50));
       autosize(element);
@@ -1222,14 +1293,14 @@ function bindFieldListeners() {
         return;
       }
 
-      if (currentUser && projectDocRef && activeProjectId) {
-        console.log(`[bindFieldListeners] Speichere Feld "${id}" in Firestore`);
-        pendingRemoteUpdates[id] = element.value;
-        throttledFirestoreSave();
-      } else {
-        console.log(`[bindFieldListeners] Speichere Feld "${id}" lokal (kein User/Project)`);
-        throttledLocalSave();
+      // SOFORT: UI Feedback zeigen
+      if (saveStatus) {
+        saveStatus.textContent = 'Tippt...';
+        saveStatus.style.color = 'yellow';
       }
+      
+      // Rufe debounced Funktion auf
+      debouncedSave();
     });
   });
   
@@ -1921,117 +1992,7 @@ async function analyzeSection(sectionName) {
   console.log('[analyzeSection] Start für Sektion:', sectionName);
   console.log('[analyzeSection] currentUserPlan:', currentUserPlan);
   
-  // FEATURE GATING: Prüfe Plan und Limits
-  if (currentUserPlan === 'pro') {
-    // Pro-User: Alles erlaubt, direkt weiter
-    console.log('[analyzeSection] Pro-User, führe Analyse direkt aus');
-  } else if (currentUserPlan === 'free') {
-    // Free-User: Prüfe Limit
-    console.log('[analyzeSection] Free-User, prüfe monatliches Limit');
-    
-    if (!currentUser || !activeProjectId) {
-      showToast('Bitte melde dich an, um eine Analyse zu starten', 'error');
-      return;
-    }
-    
-    try {
-      const projectRef = doc(db, 'projects', activeProjectId);
-      const projectSnap = await getDoc(projectRef);
-      
-      if (!projectSnap.exists()) {
-        console.error('[analyzeSection] Projekt nicht gefunden');
-        return;
-      }
-      
-      const projectData = projectSnap.data();
-      const lastAnalysisAt = projectData.lastAnalysisAt;
-      
-      if (lastAnalysisAt) {
-        // Prüfe ob letzte Analyse < 30 Tage her ist
-        const lastAnalysisDate = lastAnalysisAt.toDate();
-        const now = new Date();
-        const daysDiff = Math.floor((now - lastAnalysisDate) / (1000 * 60 * 60 * 24));
-        
-        console.log('[analyzeSection] Letzte Analyse vor', daysDiff, 'Tagen');
-        
-        if (daysDiff < 30) {
-          // Limit erreicht -> Zeige Upgrade Modal
-          console.log('[analyzeSection] Limit erreicht, zeige Upgrade Modal');
-          openUpgradeModal();
-          return;
-        }
-      }
-      
-      // Limit nicht erreicht -> Zeige Bestätigungs-Modal
-      console.log('[analyzeSection] Limit verfügbar, zeige Bestätigungs-Modal');
-      
-      // Warte auf User-Bestätigung
-      const confirmed = await new Promise((resolve) => {
-        pendingAnalysisCallback = resolve;
-        
-        // Setup "Ja" Button (wird nur einmal beim Öffnen gesetzt)
-        const yesBtn = document.getElementById('confirm-limit-yes');
-        if (yesBtn) {
-          // Entferne alte Listener (falls vorhanden)
-          const newYesBtn = yesBtn.cloneNode(true);
-          yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
-          
-          newYesBtn.addEventListener('click', () => {
-            closeConfirmLimitModal();
-            resolve(true);
-          });
-          
-          // Setup "Noch mal prüfen" Button
-          const noBtn = document.getElementById('confirm-limit-no');
-          if (noBtn) {
-            const newNoBtn = noBtn.cloneNode(true);
-            noBtn.parentNode.replaceChild(newNoBtn, noBtn);
-            
-            newNoBtn.addEventListener('click', () => {
-              closeConfirmLimitModal();
-              resolve(false);
-            });
-          }
-        }
-        
-        openConfirmLimitModal();
-      });
-      
-      pendingAnalysisCallback = null;
-      
-      if (!confirmed) {
-        console.log('[analyzeSection] Analyse vom User abgebrochen');
-        // UI zurücksetzen (falls bereits gesetzt)
-        if (button) button.disabled = false;
-        if (spinner) spinner.classList.add('hidden');
-        return;
-      }
-      
-      console.log('[analyzeSection] Analyse vom User bestätigt, starte API-Call');
-    } catch (error) {
-      console.error('[analyzeSection] Fehler beim Prüfen des Limits:', error);
-      showToast('Fehler beim Prüfen des Limits. Bitte versuche es erneut.', 'error');
-      // UI zurücksetzen
-      if (button) button.disabled = false;
-      if (spinner) spinner.classList.add('hidden');
-      return;
-    }
-  } else {
-    // Unbekannter Plan -> Blockiere
-    console.warn('[analyzeSection] Unbekannter Plan, blockiere Analyse');
-    openUpgradeModal();
-    // UI zurücksetzen
-    if (button) button.disabled = false;
-    if (spinner) spinner.classList.add('hidden');
-    return;
-  }
-  
-  // AB HIER: Normale Analyse-Logik (für Pro-User oder bestätigte Free-User)
-  // UI: Loading-State setzen (jetzt, wo wir wissen, dass die Analyse startet)
-  button.disabled = true;
-  spinner.classList.remove('hidden');
-  responseDiv.classList.add('hidden');
-  
+  // VARIABLE HOISTING: Definiere alle benötigten Variablen ganz oben
   const sectionConfig = {
     'hypothese': {
       buttonId: 'analyze-hypothese',
@@ -2088,14 +2049,115 @@ Antworte im Markdown-Format:
     return;
   }
 
-  const button = document.getElementById(config.buttonId);
+  // Definiere btn, spinner, responseDiv GANZ OBEN
+  const btn = document.getElementById('btn-' + sectionName);
   const spinner = document.getElementById(config.spinnerId);
   const responseDiv = document.getElementById(config.responseId);
-
-  if (!button || !spinner || !responseDiv) {
+  
+  if (!btn || !spinner || !responseDiv) {
     console.error('Elemente nicht gefunden für Sektion:', sectionName);
     return;
   }
+  
+  // CHAOS MODE SCHUTZ: Prüfe ganz am Anfang
+  if (typeof isChaosMode !== 'undefined' && isChaosMode) {
+    console.warn('[analyzeSection] Chaos Mode aktiv, simuliere Analyse');
+    showToast('🤖 Analyse simuliert (Chaos Mode)', 'warning');
+    
+    // Simuliere Antwort nach 500ms
+    await new Promise(r => setTimeout(r, 500));
+    responseDiv.innerHTML = '<p class="text-gray-400">Simulierte Analyse im Chaos-Modus.</p>';
+    responseDiv.classList.remove('hidden');
+    return;
+  }
+  
+  // FEATURE GATING: Prüfe Plan und Limits
+  if (currentUserPlan === 'pro') {
+    // Pro-User: Alles erlaubt, direkt weiter
+    console.log('[analyzeSection] Pro-User, führe Analyse direkt aus');
+  } else if (currentUserPlan === 'free') {
+    // Free-User: Prüfe Limit
+    console.log('[analyzeSection] Free-User, prüfe monatliches Limit');
+    
+    if (!currentUser || !activeProjectId) {
+      showToast('Bitte melde dich an, um eine Analyse zu starten', 'error');
+      return;
+    }
+    
+    try {
+      const projectRef = doc(db, 'projects', activeProjectId);
+      const projectSnap = await getDoc(projectRef);
+      
+      if (!projectSnap.exists()) {
+        console.error('[analyzeSection] Projekt nicht gefunden');
+        return;
+      }
+      
+      const projectData = projectSnap.data();
+      const lastAnalysisAt = projectData.lastAnalysisAt;
+      
+      if (lastAnalysisAt) {
+        // Prüfe ob letzte Analyse < 30 Tage her ist
+        const lastAnalysisDate = lastAnalysisAt.toDate();
+        const now = new Date();
+        const daysDiff = Math.floor((now - lastAnalysisDate) / (1000 * 60 * 60 * 24));
+        
+        console.log('[analyzeSection] Letzte Analyse vor', daysDiff, 'Tagen');
+        
+        if (daysDiff < 30) {
+          // Limit erreicht -> Zeige Upgrade Modal
+          console.log('[analyzeSection] Limit erreicht, zeige Upgrade Modal');
+          openUpgradeModal();
+          return;
+        }
+      }
+      
+      // Limit nicht erreicht -> Zeige Bestätigungs-Modal
+      console.log('[analyzeSection] Limit verfügbar, zeige Bestätigungs-Modal');
+      
+      // Öffne Modal
+      const confirmModal = document.getElementById('confirm-limit-modal');
+      if (confirmModal) {
+        confirmModal.classList.remove('hidden');
+        confirmModal.classList.add('flex');
+      }
+      
+      // Warte auf User-Bestätigung mit Promise-Pattern
+      const confirmed = await new Promise((resolve) => {
+        window.analysisResolver = resolve;
+      });
+      
+      // Modal schließen
+      if (confirmModal) {
+        confirmModal.classList.add('hidden');
+        confirmModal.classList.remove('flex');
+      }
+      
+      window.analysisResolver = null;
+      
+      if (!confirmed) {
+        console.log('[analyzeSection] Analyse vom User abgebrochen');
+        return;
+      }
+      
+      console.log('[analyzeSection] Analyse vom User bestätigt, starte API-Call');
+    } catch (error) {
+      console.error('[analyzeSection] Fehler beim Prüfen des Limits:', error);
+      showToast('Fehler beim Prüfen des Limits. Bitte versuche es erneut.', 'error');
+      return;
+    }
+  } else {
+    // Unbekannter Plan -> Blockiere
+    console.warn('[analyzeSection] Unbekannter Plan, blockiere Analyse');
+    openUpgradeModal();
+    return;
+  }
+  
+  // AB HIER: Normale Analyse-Logik (für Pro-User oder bestätigte Free-User)
+  // UI: Loading-State setzen (jetzt, wo wir wissen, dass die Analyse startet)
+  btn.disabled = true;
+  spinner.classList.remove('hidden');
+  responseDiv.classList.add('hidden');
 
   // Sammle Feldwerte
   const fieldValues = config.fields.map(fieldId => {
@@ -2133,7 +2195,7 @@ Antworte im Markdown-Format:
     if (currentUser && activeProjectId) {
       try {
         await saveAnalysis(sectionName, content, aiResponse);
-        showAnalysisSavedFeedback(button);
+        showAnalysisSavedFeedback(btn);
         showSavedFeedback('Analyse gespeichert');
         
         // Nach erfolgreicher Analyse: Setze lastAnalysisAt für Free-User
@@ -2169,8 +2231,8 @@ Antworte im Markdown-Format:
     responseDiv.innerHTML = `<p class="text-red-400">Fehler: ${error.message}</p>`;
     responseDiv.classList.remove('hidden');
   } finally {
-    // UI: Loading-State zurücksetzen
-    button.disabled = false;
+    // UI: Loading-State zurücksetzen (btn ist jetzt sicher verfügbar)
+    btn.disabled = false;
     spinner.classList.add('hidden');
   }
 }
@@ -3450,4 +3512,18 @@ function startChaosMonkey() {
       Sentry.captureException(err);
     }
   });
+}
+
+// ============================================
+// DEBOUNCE HELPER FUNCTION
+// ============================================
+
+function debounce(func, timeout = 300) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      func.apply(this, args);
+    }, timeout);
+  };
 }
