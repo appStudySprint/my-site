@@ -3340,8 +3340,8 @@ async function exportToPDF() {
         ` : ''}
 
       <!-- EXECUTIVE SUMMARY -->
-      <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 16px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h2 style="font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 20px; font-weight: 700;">
           1. Executive Summary
         </h2>
         <div style="margin-top: 10px;">
