@@ -432,6 +432,8 @@ function setupAuthUi() {
     signOutButton.addEventListener('click', async () => {
       try {
         await signOut(auth);
+        localStorage.clear(); // Alles lokale löschen
+        window.location.reload(); // Hard Reload erzwingen
       } catch (error) {
         console.error('Fehler beim Abmelden:', error);
       }
@@ -2109,24 +2111,31 @@ Antworte im Markdown-Format:
       const projectData = projectSnap.data();
       const lastAnalysisAt = projectData.lastAnalysisAt;
       
-      if (lastAnalysisAt) {
-        // Prüfe ob letzte Analyse < 30 Tage her ist
+      // ROBUSTE LIMIT-PRÜFUNG: Wenn lastAnalysisAt fehlt/undefined -> ERLAUBEN (Neuer User!)
+      if (!lastAnalysisAt || lastAnalysisAt === null || lastAnalysisAt === undefined) {
+        console.log('[analyzeSection] Limit Check: lastAnalysisAt fehlt -> ERLAUBEN (Neuer User)');
+        // Neuer User: Limit verfügbar -> Zeige Bestätigungs-Modal
+        console.log('[analyzeSection] Limit verfügbar, zeige Bestätigungs-Modal');
+      } else {
+        // lastAnalysisAt existiert -> Berechne Differenz
         const lastAnalysisDate = lastAnalysisAt.toDate();
         const now = new Date();
         const daysDiff = Math.floor((now - lastAnalysisDate) / (1000 * 60 * 60 * 24));
         
-        console.log('[analyzeSection] Letzte Analyse vor', daysDiff, 'Tagen');
+        console.log('[analyzeSection] Limit Check: lastAnalysisAt:', lastAnalysisAt, 'Days Diff:', daysDiff);
         
         if (daysDiff < 30) {
-          // Limit erreicht -> Zeige Upgrade Modal
-          console.log('[analyzeSection] Limit erreicht, zeige Upgrade Modal');
+          // Limit erreicht (< 30 Tage) -> Zeige Upgrade Modal
+          console.log('[analyzeSection] Limit erreicht (vor', daysDiff, 'Tagen), zeige Upgrade Modal');
           openUpgradeModal();
           return;
+        } else {
+          // Limit nicht erreicht (> 30 Tage) -> Erlauben
+          console.log('[analyzeSection] Limit verfügbar (vor', daysDiff, 'Tagen), zeige Bestätigungs-Modal');
         }
       }
       
-      // Limit nicht erreicht -> Zeige Bestätigungs-Modal
-      console.log('[analyzeSection] Limit verfügbar, zeige Bestätigungs-Modal');
+      // Limit verfügbar -> Zeige Bestätigungs-Modal
       
       // Öffne Modal
       const confirmModal = document.getElementById('confirm-limit-modal');
