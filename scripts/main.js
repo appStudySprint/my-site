@@ -2110,6 +2110,29 @@ Antworte im Markdown-Format:
     return;
   }
   
+  // Kombiniere alle Feldwerte für Validierung
+  const combinedText = fieldValues.join('\n\n');
+  
+  // Client-Side Validierung (kostenlos, vor API-Call)
+  if (!isInputValid(combinedText)) {
+    showToast('Bitte gib eine ernsthafte Beschreibung ein (min. 10 Wörter, kein Spam).', 'warning');
+    
+    // UI Feedback: Rote Rahmen für betroffene Felder
+    config.fields.forEach(fieldId => {
+      const element = document.getElementById(fieldId);
+      if (element) {
+        element.classList.add('border-red-500');
+        element.classList.add('animate-pulse');
+        setTimeout(() => {
+          element.classList.remove('border-red-500');
+          element.classList.remove('animate-pulse');
+        }, 2000);
+      }
+    });
+    
+    return; // KEIN API Call, KEIN Modal, KEIN Credit-Abzug
+  }
+  
   // SCHRITT 2: LIMIT-CHECK (Nur für Free User)
   if (currentUserPlan === 'free') {
     console.log('[analyzeSection] Free-User, prüfe monatliches Limit');
@@ -3559,6 +3582,56 @@ function debounce(func, timeout = 300) {
       func.apply(this, args);
     }, timeout);
   };
+}
+
+// ============================================
+// INPUT VALIDIERUNG (Client-Side, kostenlos)
+// ============================================
+
+function isInputValid(text) {
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
+  const trimmed = text.trim();
+  
+  // 1. Zu kurz: Weniger als 10 Wörter
+  const words = trimmed.split(/\s+/).filter(word => word.length > 0);
+  if (words.length < 10) {
+    console.log('[isInputValid] Text zu kurz:', words.length, 'Wörter');
+    return false;
+  }
+  
+  // 2. Wiederholungen: Ein Wort wiederholt sich zu oft hintereinander (z.B. "bla bla bla")
+  const repetitionPattern = /\b(\w+)\s+\1\s+\1/i;
+  if (repetitionPattern.test(trimmed)) {
+    console.log('[isInputValid] Zu viele Wiederholungen erkannt');
+    return false;
+  }
+  
+  // 3. Tastatur-Gehämmer: Ein Wort ist länger als 30 Zeichen (unwahrscheinlich in normaler Sprache)
+  const longWordPattern = /\b\w{31,}\b/;
+  if (longWordPattern.test(trimmed)) {
+    console.log('[isInputValid] Sehr langes Wort gefunden (>30 Zeichen)');
+    return false;
+  }
+  
+  // 4. Zu wenig Vielfalt: Der Text besteht zu >50% aus demselben Zeichen
+  const charCounts = {};
+  const relevantChars = trimmed.replace(/\s/g, ''); // Ignoriere Leerzeichen
+  for (const char of relevantChars) {
+    charCounts[char] = (charCounts[char] || 0) + 1;
+  }
+  
+  const maxCount = Math.max(...Object.values(charCounts));
+  const maxPercentage = (maxCount / relevantChars.length) * 100;
+  
+  if (maxPercentage > 50) {
+    console.log('[isInputValid] Zu wenig Vielfalt:', maxPercentage.toFixed(1), '% aus einem Zeichen');
+    return false;
+  }
+  
+  return true;
 }
 
 // ============================================
