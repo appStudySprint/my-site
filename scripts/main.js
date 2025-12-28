@@ -2098,12 +2098,20 @@ Antworte im Markdown-Format:
     return;
   }
   
-  // FEATURE GATING: Prüfe Plan und Limits
-  if (currentUserPlan === 'pro') {
-    // Pro-User: Alles erlaubt, direkt weiter
-    console.log('[analyzeSection] Pro-User, führe Analyse direkt aus');
-  } else if (currentUserPlan === 'free') {
-    // Free-User: Prüfe Limit
+  // SCHRITT 1: INPUT-VALIDIERUNG (BEVOR irgendwas passiert)
+  // Sammle Feldwerte
+  const fieldValues = config.fields.map(fieldId => {
+    const element = document.getElementById(fieldId);
+    return element ? element.value.trim() : '';
+  }).filter(val => val.length > 0);
+
+  if (fieldValues.length === 0) {
+    showToast('Bitte fülle die Felder erst aus!', 'warning');
+    return;
+  }
+  
+  // SCHRITT 2: LIMIT-CHECK (Nur für Free User)
+  if (currentUserPlan === 'free') {
     console.log('[analyzeSection] Free-User, prüfe monatliches Limit');
     
     if (!currentUser || !activeProjectId) {
@@ -2148,8 +2156,6 @@ Antworte im Markdown-Format:
       }
       
       // Limit verfügbar -> Zeige Bestätigungs-Modal
-      
-      // Öffne Modal
       const confirmModal = document.getElementById('confirm-limit-modal');
       if (confirmModal) {
         confirmModal.classList.remove('hidden');
@@ -2180,6 +2186,9 @@ Antworte im Markdown-Format:
       showToast('Fehler beim Prüfen des Limits. Bitte versuche es erneut.', 'error');
       return;
     }
+  } else if (currentUserPlan === 'pro') {
+    // Pro-User: Alles erlaubt, direkt weiter
+    console.log('[analyzeSection] Pro-User, führe Analyse direkt aus');
   } else {
     // Unbekannter Plan -> Blockiere
     console.warn('[analyzeSection] Unbekannter Plan, blockiere Analyse');
@@ -2187,25 +2196,11 @@ Antworte im Markdown-Format:
     return;
   }
   
-  // AB HIER: Normale Analyse-Logik (für Pro-User oder bestätigte Free-User)
-  // UI: Loading-State setzen (jetzt, wo wir wissen, dass die Analyse startet)
+  // SCHRITT 3: API CALL & CREDIT-ABZUG (Transaktion)
+  // UI: Loading-State setzen
   btn.disabled = true;
   spinner.classList.remove('hidden');
   responseDiv.classList.add('hidden');
-
-  // Sammle Feldwerte
-  const fieldValues = config.fields.map(fieldId => {
-    const element = document.getElementById(fieldId);
-    return element ? element.value.trim() : '';
-  }).filter(val => val.length > 0);
-
-  if (fieldValues.length === 0) {
-    responseDiv.innerHTML = '<p class="text-yellow-400">Bitte füllen Sie zuerst die Felder aus.</p>';
-    responseDiv.classList.remove('hidden');
-    return;
-  }
-
-  // UI: Loading-State wird später gesetzt (nach Limit-Check für Free-User)
 
   try {
     // Erstelle den vollständigen Prompt
@@ -2216,7 +2211,7 @@ Antworte im Markdown-Format:
     const result = await callGeminiAPI(fullPrompt, 0, false);
     const aiResponse = result.text || result; // Backward compatibility
 
-    // Konvertiere Markdown zu HTML und zeige an
+    // NUR WENN ERFOLGREICH: Zeige Ergebnis an
     const htmlResponse = markdownToHtml(aiResponse);
     responseDiv.innerHTML = htmlResponse;
     responseDiv.classList.remove('hidden');
@@ -2225,29 +2220,29 @@ Antworte im Markdown-Format:
       responseDiv.classList.add('prose', 'prose-invert');
     }
 
-    // Speichere die Analyse in Firestore (wenn User eingeloggt und Projekt aktiv)
+    // NUR WENN ERFOLGREICH: Speichere in History
     if (currentUser && activeProjectId) {
       try {
         await saveAnalysis(sectionName, content, aiResponse);
         showAnalysisSavedFeedback(btn);
         showSavedFeedback('Analyse gespeichert');
-        
-        // Nach erfolgreicher Analyse: Setze lastAnalysisAt für Free-User
-        if (currentUserPlan === 'free') {
-          try {
-            const projectRef = doc(db, 'projects', activeProjectId);
-            await updateDoc(projectRef, {
-              lastAnalysisAt: serverTimestamp()
-            });
-            console.log('[analyzeSection] lastAnalysisAt gesetzt für Free-User');
-          } catch (error) {
-            console.error('[analyzeSection] Fehler beim Setzen von lastAnalysisAt:', error);
-            // Nicht kritisch, Log nur
-          }
-        }
       } catch (saveError) {
         console.error('Fehler beim Speichern der Analyse:', saveError);
         // Nicht kritisch - zeige Fehler nur in Console, nicht im UI
+      }
+    }
+
+    // NUR WENN ERFOLGREICH: Update lastAnalysisAt (Verbrauche Credit)
+    if (currentUserPlan === 'free' && currentUser && activeProjectId) {
+      try {
+        const projectRef = doc(db, 'projects', activeProjectId);
+        await updateDoc(projectRef, {
+          lastAnalysisAt: serverTimestamp()
+        });
+        console.log('[analyzeSection] lastAnalysisAt gesetzt für Free-User (Credit verbraucht)');
+      } catch (error) {
+        console.error('[analyzeSection] Fehler beim Setzen von lastAnalysisAt:', error);
+        // Nicht kritisch, Log nur
       }
     }
 
@@ -2261,11 +2256,15 @@ Antworte im Markdown-Format:
     }
 
   } catch (error) {
+    // WENN FEHLER: Kein Credit-Abzug!
     console.error('Fehler bei der Analyse:', error);
+    showToast(`Fehler: ${error.message}`, 'error');
     responseDiv.innerHTML = `<p class="text-red-400">Fehler: ${error.message}</p>`;
     responseDiv.classList.remove('hidden');
+    // WICHTIG: lastAnalysisAt wird NICHT gesetzt - User behält seinen Versuch
+    console.log('[analyzeSection] Analyse fehlgeschlagen - Credit NICHT abgezogen');
   } finally {
-    // UI: Loading-State zurücksetzen (btn ist jetzt sicher verfügbar)
+    // UI: Loading-State zurücksetzen
     btn.disabled = false;
     spinner.classList.add('hidden');
   }
