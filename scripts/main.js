@@ -488,6 +488,33 @@ function setupWaitlistModal() {
     }
     
     try {
+      // PRÜFUNG: Ist die E-Mail bereits in der Warteliste?
+      const waitlistQuery = query(
+        collection(db, 'waitlist'),
+        where('email', '==', email)
+      );
+      const waitlistSnap = await getDocs(waitlistQuery);
+      
+      // Szenario A: E-Mail bereits vorhanden
+      if (!waitlistSnap.empty) {
+        console.log('[setupWaitlistModal] E-Mail bereits auf Warteliste:', email);
+        showToast('Vielen Dank für dein Vertrauen! Du bist bereits auf der Liste.', 'success');
+        
+        // Warteliste Modal hart schließen
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        
+        // Warte 1 Sekunde, dann Login
+        setTimeout(() => {
+          signInWithPopup(auth, googleProvider).catch((error) => {
+            console.error('[setupWaitlistModal] Login Fehler:', error);
+            showToast('Login fehlgeschlagen: ' + error.message, 'error');
+          });
+        }, 1000);
+        return;
+      }
+      
+      // Szenario B: Neu -> E-Mail zur Warteliste hinzufügen
       await saveToWaitlist(email, notify);
       console.log('[setupWaitlistModal] Warteliste erfolgreich gespeichert');
       showToast('Du stehst auf der Liste! Wir melden uns.', 'success');
@@ -630,20 +657,39 @@ async function syncUserProfile(user) {
   const userSnap = await getDoc(userRef);
   
   if (!userSnap.exists()) {
-    // Neues User-Profil erstellen
+    // Neues User-Profil: Prüfe zuerst, ob E-Mail auf Warteliste steht
+    let isOnWaitlist = false;
+    
+    if (user.email) {
+      try {
+        const waitlistQuery = query(
+          collection(db, 'waitlist'),
+          where('email', '==', user.email)
+        );
+        const waitlistSnap = await getDocs(waitlistQuery);
+        isOnWaitlist = !waitlistSnap.empty;
+        console.log('[syncUserProfile] Wartelisten-Prüfung für', user.email, ':', isOnWaitlist);
+      } catch (error) {
+        console.error('[syncUserProfile] Fehler bei Wartelisten-Prüfung:', error);
+        // Im Fehlerfall: false (sicherer Default)
+      }
+    }
+    
+    // Erstelle User-Doc mit korrektem isWaitlisted Status
     await setDoc(userRef, {
       email: user.email ?? '',
       plan: 'free',
-      isWaitlisted: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      isWaitlisted: isOnWaitlist, // Nur true, wenn er wirklich auf der Warteliste steht!
+      createdAt: serverTimestamp()
     });
+    
     userProfile = {
       email: user.email ?? '',
       plan: 'free',
-      isWaitlisted: false
+      isWaitlisted: isOnWaitlist
     };
-    console.log('[syncUserProfile] Neues User-Profil erstellt');
+    
+    console.log('[syncUserProfile] Neues User-Profil erstellt mit isWaitlisted:', isOnWaitlist);
   } else {
     // Bestehendes Profil laden
     const data = userSnap.data();
@@ -652,24 +698,33 @@ async function syncUserProfile(user) {
       plan: data.plan ?? 'free',
       isWaitlisted: data.isWaitlisted ?? false
     };
+    
     // Synchronisiere currentUserPlan mit userProfile.plan
     currentUserPlan = userProfile.plan;
-    console.log('[syncUserProfile] User-Profil geladen:', userProfile);
-  }
-  
-  // Prüfe localStorage für nicht eingeloggte Wartelisten-User
-  if (!userProfile.isWaitlisted && localStorage.getItem('isWaitlisted') === 'true') {
-    try {
-      await updateDoc(userRef, {
-        isWaitlisted: true,
-        waitlistedAt: serverTimestamp()
-      }, { merge: true });
-      userProfile.isWaitlisted = true;
-      localStorage.removeItem('isWaitlisted'); // Flag aufräumen
-      console.log('[syncUserProfile] isWaitlisted von localStorage übernommen');
-    } catch (error) {
-      console.error('[syncUserProfile] Fehler beim Update von isWaitlisted:', error);
+    
+    // Optional: Update isWaitlisted, falls sich User nachträglich eingetragen hat
+    if (!userProfile.isWaitlisted && user.email) {
+      try {
+        const waitlistQuery = query(
+          collection(db, 'waitlist'),
+          where('email', '==', user.email)
+        );
+        const waitlistSnap = await getDocs(waitlistQuery);
+        if (!waitlistSnap.empty) {
+          // User steht jetzt auf Warteliste -> Update
+          await updateDoc(userRef, {
+            isWaitlisted: true,
+            waitlistedAt: serverTimestamp()
+          }, { merge: true });
+          userProfile.isWaitlisted = true;
+          console.log('[syncUserProfile] isWaitlisted auf true aktualisiert (nachträgliche Eintragung erkannt)');
+        }
+      } catch (error) {
+        console.error('[syncUserProfile] Fehler bei nachträglicher Wartelisten-Prüfung:', error);
+      }
     }
+    
+    console.log('[syncUserProfile] User-Profil geladen:', userProfile);
   }
   
   return userProfile;
