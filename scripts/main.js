@@ -219,19 +219,19 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeThrottledFunctions();
     
     // Auth & Landing Page Setup - MUSS ZUERST passieren!
-    setupAuthUi();
+  setupAuthUi();
     
-    loadLocalData();
-    autosizeAll();
+  loadLocalData();
+  autosizeAll();
     setupAutosize(); // Initialisiere Autosize für alle Textareas
-    bindFieldListeners();
-    setupClearButton();
-    setupInviteForm();
-    captureInviteFromUrl();
-    setupAnalyzeButtons();
-    setupWizard();
-    setupHistoryPanel();
-    setupFinanceCalculator();
+  bindFieldListeners();
+  setupClearButton();
+  setupInviteForm();
+  captureInviteFromUrl();
+  setupAnalyzeButtons();
+  setupWizard();
+  setupHistoryPanel();
+  setupFinanceCalculator();
     
     // PDF Export Button
     const pdfButton = document.getElementById('btn-export-pdf');
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     
-    showStep(1); // Starte mit Schritt 1
+  showStep(1); // Starte mit Schritt 1
   } catch (error) {
     console.error('[DOMContentLoaded] Fehler bei Initialisierung:', error);
   }
@@ -345,8 +345,8 @@ function updateUIState(user) {
 // ============================================
 
 function triggerLogin() {
-  signInWithPopup(auth, googleProvider).catch((error) => {
-    console.error("Login Fehler:", error);
+      signInWithPopup(auth, googleProvider).catch((error) => {
+        console.error("Login Fehler:", error);
     showToast("Login fehlgeschlagen: " + error.message, "error");
   });
 }
@@ -762,7 +762,7 @@ function setupUpsellGate() {
   const upsellGate = document.getElementById('upsell-gate');
   const btnUpsellPro = document.getElementById('btn-upsell-pro');
   const btnUpsellSkip = document.getElementById('btn-upsell-skip');
-  const appContainer = document.getElementById('app-container');
+    const appContainer = document.getElementById('app-container');
   
   if (!upsellGate) {
     console.warn('[setupUpsellGate] Upsell Gate nicht gefunden');
@@ -950,9 +950,6 @@ async function initializeForUser(user) {
 
   try {
     // SCHRITT 3: Datenbank-Operationen
-    console.log('[initializeForUser] ensureOwnerProject...');
-    await ensureOwnerProject(user);
-    
     console.log('[initializeForUser] resolveActiveProject...');
     await resolveActiveProject(user);
     
@@ -988,69 +985,91 @@ async function initializeForUser(user) {
     showToast("Initialisierungs-Fehler: " + error.message, 'error');
   }
 }
-async function ensureOwnerProject(user) {
-  const projectId = `${user.uid}-personal`;
-  const ref = doc(db, 'projects', projectId);
-  const snapshot = await getDoc(ref);
+// Erstelle ein neues Projekt mit automatischer ID
+async function createNewProject(user) {
+  console.log('[createNewProject] Erstelle neues Projekt für User:', user.uid);
   
-  // Hole Plan aus userProfile (korrekte Quelle)
+  // Hole Plan aus userProfile
   const planFromProfile = userProfile?.plan || 'free';
+  const initialFields = getCurrentFieldValues();
   
-  if (!snapshot.exists()) {
-    const initialFields = getCurrentFieldValues();
-    await setDoc(ref, {
-      ownerId: user.uid,
-      name: 'Persönliches Projekt',
-      plan: planFromProfile, // Verwende Plan aus userProfile
-      fields: initialFields,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    console.log('[ensureOwnerProject] Neues Projekt erstellt mit plan:', planFromProfile);
-    currentUserPlan = planFromProfile;
-  } else {
-    // Lade Plan aus bestehendem Projekt
-    const data = snapshot.data();
-    if (data.plan) {
-      currentUserPlan = data.plan;
-      console.log('[ensureOwnerProject] Plan aus Projekt geladen:', currentUserPlan);
-    } else {
-      // Fallback: Prüfe zuerst userProfile (korrekte Quelle)
-      if (userProfile && userProfile.plan) {
-        currentUserPlan = userProfile.plan;
-        console.log('[ensureOwnerProject] Plan aus userProfile geladen:', currentUserPlan);
-        // Synchronisiere Plan im Projekt-Dokument
-        await updateDoc(ref, { plan: userProfile.plan });
-      } else {
-        // Fallback: Setze Plan auf 'free' wenn nicht vorhanden
-        await updateDoc(ref, { plan: 'free' });
-        currentUserPlan = 'free';
-        console.log('[ensureOwnerProject] Plan auf free gesetzt (Fallback)');
-      }
-    }
-  }
-  await setDoc(doc(db, 'projects', projectId, 'members', user.uid), {
+  // Erstelle neues Projekt mit automatischer ID
+  const projectsRef = collection(db, 'projects');
+  const newProjectRef = await addDoc(projectsRef, {
+    ownerId: user.uid,
+    name: 'Neues Projekt',
+    plan: planFromProfile,
+    status: 'active',
+    fields: initialFields,
+    results: {},
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  
+  console.log('[createNewProject] Neues Projekt erstellt mit ID:', newProjectRef.id);
+  currentUserPlan = planFromProfile;
+  
+  // Erstelle Mitgliedschaft
+  await setDoc(doc(db, 'projects', newProjectRef.id, 'members', user.uid), {
     role: 'owner',
     email: user.email ?? '',
     displayName: user.displayName ?? '',
     addedAt: serverTimestamp(),
   }, { merge: true });
+  
+  // Setze als aktives Projekt
+  await setActiveProject(newProjectRef.id);
 }
 
 async function resolveActiveProject(user) {
+  console.log('[resolveActiveProject] START für User:', user.uid);
+  
+  // Versuche zuerst gespeicherte Projekt-ID
   const stored = localStorage.getItem('activeProjectId');
-
   if (stored) {
     const existing = await getDoc(doc(db, 'projects', stored));
     if (existing.exists()) {
-      await setActiveProject(stored);
-      return;
+      const data = existing.data();
+      // Nur laden, wenn es nicht abgeschlossen ist oder dem User gehört
+      if (data.ownerId === user.uid && data.status !== 'completed') {
+        console.log('[resolveActiveProject] Verwende gespeichertes Projekt:', stored);
+        await setActiveProject(stored);
+        return;
+      }
     }
     localStorage.removeItem('activeProjectId');
   }
 
-  const defaultId = `${user.uid}-personal`;
-  await setActiveProject(defaultId);
+  // Suche das letzte aktive Projekt des Users
+  try {
+    const projectsRef = collection(db, 'projects');
+    const q = query(
+      projectsRef,
+      where('ownerId', '==', user.uid),
+      orderBy('updatedAt', 'desc'),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const projectDoc = snapshot.docs[0];
+      const projectData = projectDoc.data();
+      
+      // Nur laden, wenn nicht abgeschlossen
+      if (projectData.status !== 'completed') {
+        console.log('[resolveActiveProject] Letztes aktives Projekt gefunden:', projectDoc.id);
+        await setActiveProject(projectDoc.id);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error('[resolveActiveProject] Fehler beim Suchen des letzten Projekts:', error);
+    // Falls orderBy nicht funktioniert (z.B. fehlender Index), erstelle neues Projekt
+  }
+
+  // Kein aktives Projekt gefunden -> erstelle neues
+  console.log('[resolveActiveProject] Erstelle neues Projekt');
+  await createNewProject(user);
 }
 
 async function setActiveProject(projectId) {
@@ -1079,10 +1098,14 @@ async function setActiveProject(projectId) {
 
   if (!projectSnap.exists()) {
     console.log('[setActiveProject] Projekt existiert nicht, erstelle neues Projekt');
+    const planFromProfile = userProfile?.plan || 'free';
     await setDoc(projectDocRef, {
       ownerId: currentUser.uid,
-      name: 'Projekt',
+      name: 'Neues Projekt',
+      plan: planFromProfile,
+      status: 'active',
       fields: getCurrentFieldValues(),
+      results: {},
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1095,6 +1118,9 @@ async function setActiveProject(projectId) {
   activeProjectName = data.name ?? 'Projekt';
   console.log('[setActiveProject] activeProjectName:', activeProjectName);
   updateProjectLabel();
+
+  // Lade gespeicherte Ergebnisse (KI-Analysen) und zeige sie an
+  await loadProjectResults(data.results || {});
 
   const membershipSnap = await getDoc(doc(db, 'projects', projectId, 'members', currentUser.uid));
   currentMembership = membershipSnap.exists() ? membershipSnap.data() : { role: 'viewer' };
@@ -1118,6 +1144,46 @@ async function setActiveProject(projectId) {
   
   console.log('[setActiveProject] ERFOLG - activeProjectId:', activeProjectId);
   console.log('[setActiveProject] projectDocRef:', projectDocRef?.id);
+}
+
+// Lade gespeicherte KI-Ergebnisse aus dem Projekt-Dokument
+async function loadProjectResults(results) {
+  console.log('[loadProjectResults] Lade Ergebnisse:', Object.keys(results || {}));
+  
+  // Mapping von Section-Namen zu HTML-Container-IDs
+  const sectionMap = {
+    'hypothese': 'response-hypothese',
+    'persona': 'response-persona',
+    'mvp': 'response-mvp',
+    'validierung': 'response-validierung'
+  };
+
+  // Iteriere durch alle Sections
+  for (const [section, containerId] of Object.entries(sectionMap)) {
+    const resultHtml = results[section];
+    if (resultHtml && typeof resultHtml === 'string') {
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.innerHTML = resultHtml;
+        container.classList.remove('hidden');
+        
+        // Stelle sicher, dass prose-invert Klasse vorhanden ist
+        if (!container.classList.contains('prose-invert')) {
+          container.classList.add('prose', 'prose-invert');
+        }
+        
+        // Zeige Pivot-Button für Hypothese-Sektion, wenn Ergebnis vorhanden
+        if (section === 'hypothese') {
+          const btnPivot = document.getElementById('btn-pivot');
+          if (btnPivot) {
+            btnPivot.classList.remove('hidden');
+          }
+        }
+        
+        console.log(`[loadProjectResults] Ergebnis für ${section} geladen`);
+      }
+    }
+  }
 }
 
 function clearProjectSubscriptions() {
@@ -2080,12 +2146,12 @@ Antworte im Markdown-Format:
   const btn = document.getElementById(config.buttonId);
   const spinner = document.getElementById(config.spinnerId);
   const responseDiv = document.getElementById(config.responseId);
-  
+
   if (!btn || !spinner || !responseDiv) {
     console.error('Elemente nicht gefunden für Sektion:', sectionName);
     return;
   }
-  
+
   // CHAOS MODE SCHUTZ: Prüfe ganz am Anfang
   if (typeof isChaosMode !== 'undefined' && isChaosMode) {
     console.warn('[analyzeSection] Chaos Mode aktiv, simuliere Analyse');
@@ -2109,7 +2175,7 @@ Antworte im Markdown-Format:
     showToast('Bitte fülle die Felder erst aus!', 'warning');
     return;
   }
-  
+
   // Kombiniere alle Feldwerte für Validierung
   const combinedText = fieldValues.join('\n\n');
   
@@ -2243,10 +2309,19 @@ Antworte im Markdown-Format:
       responseDiv.classList.add('prose', 'prose-invert');
     }
 
-    // NUR WENN ERFOLGREICH: Speichere in History
+    // NUR WENN ERFOLGREICH: Speichere in History UND im Projekt-Dokument
     if (currentUser && activeProjectId) {
       try {
         await saveAnalysis(sectionName, content, aiResponse);
+        
+        // Speichere Ergebnis auch im Projekt-Dokument für sofortiges Laden nach Reload
+        const projectRef = doc(db, 'projects', activeProjectId);
+        await updateDoc(projectRef, {
+          [`results.${sectionName}`]: htmlResponse,
+          updatedAt: serverTimestamp()
+        });
+        console.log(`[analyzeSection] Ergebnis in results.${sectionName} gespeichert`);
+        
         showAnalysisSavedFeedback(btn);
         showSavedFeedback('Analyse gespeichert');
       } catch (saveError) {
@@ -3039,76 +3114,103 @@ function setupHistoryPanel() {
 }
 
 async function loadHistory() {
-    const historyContent = document.getElementById('history-content');
+  const historyContent = document.getElementById('history-content');
   if (!historyContent) return;
 
   // Prüfe auth.currentUser als sicheren Fallback
   const user = currentUser || auth?.currentUser;
   
   if (!user) {
-      historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
+    historyContent.innerHTML = '<p class="text-gray-400 text-center">Bitte melden Sie sich an, um die Historie zu sehen.</p>';
     return;
   }
 
-  // Wenn activeProjectId noch nicht gesetzt ist, warte kurz
-  if (!activeProjectId) {
-    historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Projekt...</p>';
-    
-    // Warte maximal 3 Sekunden auf activeProjectId
-    let attempts = 0;
-    while (!activeProjectId && attempts < 30) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-    
-    if (!activeProjectId) {
-      historyContent.innerHTML = '<p class="text-red-400 text-center">Projekt konnte nicht geladen werden.</p>';
-      return;
-    }
-  }
-
-  historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Historie...</p>';
+  historyContent.innerHTML = '<p class="text-gray-400 text-center">Lade Projekte...</p>';
 
   try {
-    const analysesRef = collection(db, 'projects', activeProjectId, 'analyses');
-    const q = query(analysesRef, orderBy('createdAt', 'desc'), limit(20));
+    // Lade alle Projekte des Users
+    const projectsRef = collection(db, 'projects');
+    const q = query(
+      projectsRef,
+      where('ownerId', '==', user.uid),
+      orderBy('updatedAt', 'desc')
+    );
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      historyContent.innerHTML = '<p class="text-gray-400 text-center">Noch keine Analysen vorhanden.</p>';
+      historyContent.innerHTML = '<p class="text-gray-400 text-center">Noch keine Projekte vorhanden.</p>';
       return;
     }
 
-    const analyses = snapshot.docs.map(doc => ({
+    const projects = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
 
-    historyContent.innerHTML = analyses.map(analysis => {
-      const date = analysis.createdAt?.toDate ? analysis.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
-      const sectionNames = {
-        'hypothese': 'Hypothese',
-        'persona': 'Persona',
-        'mvp': 'MVP',
-        'validierung': 'Validierung'
-      };
-      const sectionName = sectionNames[analysis.section] || analysis.section;
+    historyContent.innerHTML = projects.map(project => {
+      const createdAt = project.createdAt?.toDate ? project.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
+      const isActive = project.id === activeProjectId;
+      const statusBadge = project.status === 'completed' 
+        ? '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs">Abgeschlossen</span>'
+        : isActive
+        ? '<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs">Aktiv</span>'
+        : '<span class="bg-gray-500/20 text-gray-400 px-2 py-1 rounded-full text-xs">Offen</span>';
       
       return `
-        <div class="glass-panel p-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-blue-400 font-semibold">${sectionName}</span>
-            <span class="text-xs text-gray-500">${date}</span>
+        <div class="glass-panel p-4 ${isActive ? 'border-2 border-blue-500' : ''}">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-white">${escapeHtml(project.name || 'Unbenanntes Projekt')}</h3>
+            ${statusBadge}
           </div>
-          <p class="text-sm text-gray-300 line-clamp-3">${analysis.outputText?.substring(0, 150) || 'Keine Antwort'}...</p>
+          <div class="flex items-center justify-between text-sm text-gray-400 mb-3">
+            <span>Erstellt: ${createdAt}</span>
+          </div>
+          <button 
+            onclick="switchProject('${project.id}')" 
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors ${isActive ? 'opacity-50 cursor-not-allowed' : ''}"
+            ${isActive ? 'disabled' : ''}
+          >
+            ${isActive ? 'Aktuelles Projekt' : 'Projekt laden'}
+          </button>
         </div>
       `;
     }).join('');
   } catch (error) {
-    console.error('Fehler beim Laden der Historie:', error);
-    historyContent.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Historie.</p>';
+    console.error('Fehler beim Laden der Projekte:', error);
+    historyContent.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Projekte.</p>';
   }
 }
+
+// Wechsle zu einem anderen Projekt
+async function switchProject(projectId) {
+  console.log('[switchProject] Wechsle zu Projekt:', projectId);
+  
+  if (!currentUser) {
+    showToast("Nicht eingeloggt!", "error");
+    return;
+  }
+
+  try {
+    // Schließe History-Panel
+    const historyPanel = document.getElementById('history-panel');
+    if (historyPanel) {
+      historyPanel.classList.add('translate-x-full');
+      setTimeout(() => {
+        historyPanel.classList.add('hidden');
+      }, 300);
+    }
+
+    // Lade das Projekt
+    await setActiveProject(projectId);
+    showToast("Projekt geladen!", "success");
+  } catch (error) {
+    console.error('[switchProject] Fehler:', error);
+    showToast("Fehler beim Laden des Projekts: " + error.message, "error");
+  }
+}
+
+// Mache switchProject global verfügbar
+window.switchProject = switchProject;
 
 // Finance Calculator Functions
 function setupFinanceCalculator() {
@@ -3512,49 +3614,42 @@ async function finishProject() {
     return;
   }
 
-  // 2. SELF-HEALING: ID rekonstruieren
-  // Wenn activeProjectId fehlt (durch Fehler beim Start), bauen wir sie uns selbst.
-  // Das Format ist immer: UID + "-personal"
-  const targetProjectId = activeProjectId || `${auth.currentUser.uid}-personal`;
-  console.log("[finishProject] Versuche Abschluss für Projekt:", targetProjectId);
-  console.log("[finishProject] activeProjectId war:", activeProjectId);
-  console.log("[finishProject] targetProjectId ist:", targetProjectId);
+  if (!activeProjectId) {
+    showToast("Kein aktives Projekt!", "error");
+    return;
+  }
 
   const originalText = btn.innerText;
   btn.disabled = true;
   btn.innerHTML = "💾 Speichere...";
 
   try {
-    const docRef = doc(db, 'projects', targetProjectId);
+    const docRef = doc(db, 'projects', activeProjectId);
     
-    // 3. Daten sammeln (Snapshot der aktuellen Eingaben)
-    // Wir holen uns die Werte direkt aus dem DOM, um sicherzugehen
+    // 2. Daten sammeln (Snapshot der aktuellen Eingaben)
     const currentData = {};
     fieldIds.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
         currentData[id] = el.value;
-        console.log(`[finishProject] Feld "${id}":`, el.value.substring(0, 50));
       }
     });
 
-    console.log("[finishProject] Speichere mit setDoc (merge: true)");
-
-    // 4. "Upsert" (Update oder Erstellen)
-    // Wir nutzen setDoc mit merge:true. Das funktioniert IMMER.
-    // Wenn das Projekt existiert -> Update. Wenn nicht -> Erstellen.
-    await setDoc(docRef, {
-      ownerId: auth.currentUser.uid,
-      name: 'Persönliches Projekt',
+    // 3. Setze Status auf 'completed' und speichere finale Daten
+    await updateDoc(docRef, {
       status: 'completed',
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      fields: currentData // Speichere die aktuellen Eingaben sicherheitshalber mit
-    }, { merge: true });
+      fields: currentData
+    });
 
-    console.log("[finishProject] ERFOLG - Projekt gespeichert & abgeschlossen");
+    console.log("[finishProject] Projekt abgeschlossen:", activeProjectId);
 
-    // 5. Erfolg & Reset
+    // 4. Setze activeProjectId zurück
+    activeProjectId = null;
+    localStorage.removeItem('activeProjectId');
+
+    // 5. Erfolg-Feedback
     if (window.confetti) {
       window.confetti({
         particleCount: 150,
@@ -3562,13 +3657,13 @@ async function finishProject() {
         origin: { y: 0.6 }
       });
     }
-    showToast("Projekt erfolgreich gespeichert & abgeschlossen!", "success");
+    showToast("Projekt erfolgreich abgeschlossen!", "success");
 
-    setTimeout(() => {
-      // Hartes Neuladen, um die App für das nächste Projekt zu resetten
-      console.log("[finishProject] Starte window.location.reload()");
-      window.location.reload();
-    }, 2000);
+    // 6. Erstelle neues Projekt und lade es
+    setTimeout(async () => {
+      await createNewProject(currentUser || auth.currentUser);
+      showToast("Neues Projekt erstellt!", "success");
+    }, 1000);
 
   } catch (error) {
     console.error("[finishProject] FEHLER:", error);
