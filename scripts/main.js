@@ -197,6 +197,7 @@ let pendingRemoteUpdates = {};
 let activeProjectId = null;
 let activeProjectName = 'Persönliches Projekt';
 let currentMembership = { role: 'owner' };
+let userProjects = []; // Liste aller Projekte des Users
 
 // Globale Variable für Analysis-Resolver (Promise-Pattern für Modal)
 if (typeof window !== 'undefined') {
@@ -228,10 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
   setupClearButton();
   setupInviteForm();
   captureInviteFromUrl();
-  setupAnalyzeButtons();
-  setupWizard();
-  setupHistoryPanel();
-  setupFinanceCalculator();
+    setupAnalyzeButtons();
+    setupWizard();
+    setupHistoryPanel();
+    setupProjectGateModal();
+    setupFinanceCalculator();
     
     // PDF Export Button
     const pdfButton = document.getElementById('btn-export-pdf');
@@ -985,40 +987,178 @@ async function initializeForUser(user) {
     showToast("Initialisierungs-Fehler: " + error.message, 'error');
   }
 }
-// Erstelle ein neues Projekt mit automatischer ID
-async function createNewProject(user) {
-  console.log('[createNewProject] Erstelle neues Projekt für User:', user.uid);
+// Öffne das Projekt-Gate-Modal
+async function openProjectGateModal() {
+  const modal = document.getElementById('project-gate-modal');
+  if (!modal) return;
+
+  // Rendere Projekt-Liste
+  await renderProjectList();
   
-  // Hole Plan aus userProfile
-  const planFromProfile = userProfile?.plan || 'free';
-  const initialFields = getCurrentFieldValues();
+  // Zeige Modal
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+// Schließe das Projekt-Gate-Modal
+function closeProjectGateModal() {
+  const modal = document.getElementById('project-gate-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
   
-  // Erstelle neues Projekt mit automatischer ID
-  const projectsRef = collection(db, 'projects');
-  const newProjectRef = await addDoc(projectsRef, {
-    ownerId: user.uid,
-    name: 'Neues Projekt',
-    plan: planFromProfile,
-    status: 'active',
-    fields: initialFields,
-    results: {},
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  // Reset Create-Form
+  const createForm = document.getElementById('project-create-form');
+  const createSection = document.getElementById('project-create-section');
+  if (createForm) createForm.classList.add('hidden');
+  if (createSection) createSection.classList.remove('hidden');
+  
+  const nameInput = document.getElementById('new-project-name');
+  if (nameInput) nameInput.value = '';
+}
+
+// Rendere die Projekt-Liste im Modal
+async function renderProjectList() {
+  const container = document.getElementById('project-list-container');
+  if (!container) return;
+
+  if (userProjects.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center">Noch keine Projekte vorhanden.</p>';
+    return;
+  }
+
+  container.innerHTML = userProjects.map(project => {
+    const createdAt = project.createdAt?.toDate ? project.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
+    const isActive = project.id === activeProjectId;
+    const statusBadge = project.status === 'completed' 
+      ? '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs">Abgeschlossen</span>'
+      : isActive
+      ? '<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs">Aktiv</span>'
+      : '<span class="bg-gray-500/20 text-gray-400 px-2 py-1 rounded-full text-xs">Offen</span>';
+    
+    // Extrahiere Score falls vorhanden
+    let scoreDisplay = '';
+    if (project.results && project.results['hypothese']) {
+      // Versuche Score aus final-score Analyse zu extrahieren (falls vorhanden)
+      scoreDisplay = '<span class="text-xs text-gray-500">Score: -</span>';
+    }
+    
+    return `
+      <div class="glass-panel p-4 ${isActive ? 'border-2 border-blue-500' : 'cursor-pointer hover:bg-dark-800/50'} transition-colors" ${!isActive ? `onclick="loadProject('${project.id}')"` : ''}>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-lg font-bold text-white">${escapeHtml(project.name || 'Unbenanntes Projekt')}</h3>
+          ${statusBadge}
+        </div>
+        <div class="flex items-center justify-between text-sm text-gray-400">
+          <span>Erstellt: ${createdAt}</span>
+          ${scoreDisplay}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Verstecke Wizard bis Projekt geladen
+function hideWizardUntilProjectLoaded() {
+  const wizardSteps = document.querySelectorAll('.wizard-step');
+  wizardSteps.forEach(step => {
+    step.classList.add('hidden');
   });
+}
+
+// Zeige Wizard nach Projekt-Laden
+function showWizardAfterProjectLoaded() {
+  if (currentStep >= 1 && currentStep <= totalSteps) {
+    showStep(currentStep);
+  } else {
+    showStep(1);
+  }
+}
+
+// Erstelle ein neues Projekt mit automatischer ID (UI-Version mit Limit-Check)
+async function createNewProjectUI(name) {
+  if (!currentUser) {
+    showToast("Nicht eingeloggt!", "error");
+    return;
+  }
+
+  // Limit Check
+  if (currentUserPlan === 'free' && userProjects.length >= 1) {
+    showToast("Free User dürfen nur 1 Projekt haben", "warning");
+    openUpgradeModal();
+    return;
+  }
+
+  if (currentUserPlan === 'pro' && userProjects.length >= 100) {
+    showToast("Projekt-Limit erreicht (100 Projekte)", "error");
+    return;
+  }
+
+  if (!name || !name.trim()) {
+    showToast("Bitte gib einen Projektnamen ein", "warning");
+    return;
+  }
+
+  try {
+    const planFromProfile = userProfile?.plan || 'free';
+    const initialFields = getCurrentFieldValues();
+    
+    const projectsRef = collection(db, 'projects');
+    const newProjectRef = await addDoc(projectsRef, {
+      ownerId: currentUser.uid,
+      name: name.trim(),
+      plan: planFromProfile,
+      status: 'active',
+      fields: initialFields,
+      results: {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    
+    console.log('[createNewProjectUI] Neues Projekt erstellt:', newProjectRef.id);
+    currentUserPlan = planFromProfile;
+    
+    // Erstelle Mitgliedschaft
+    await setDoc(doc(db, 'projects', newProjectRef.id, 'members', currentUser.uid), {
+      role: 'owner',
+      email: currentUser.email ?? '',
+      displayName: currentUser.displayName ?? '',
+      addedAt: serverTimestamp(),
+    }, { merge: true });
+    
+    // Lade das Projekt und schließe Modal
+    await loadProject(newProjectRef.id);
+    
+  } catch (error) {
+    console.error('[createNewProjectUI] Fehler:', error);
+    showToast("Fehler beim Erstellen: " + error.message, "error");
+  }
+}
+
+// Lade ein Projekt (ersetzt setActiveProject für Gate-Flow)
+async function loadProject(projectId) {
+  console.log('[loadProject] Lade Projekt:', projectId);
   
-  console.log('[createNewProject] Neues Projekt erstellt mit ID:', newProjectRef.id);
-  currentUserPlan = planFromProfile;
-  
-  // Erstelle Mitgliedschaft
-  await setDoc(doc(db, 'projects', newProjectRef.id, 'members', user.uid), {
-    role: 'owner',
-    email: user.email ?? '',
-    displayName: user.displayName ?? '',
-    addedAt: serverTimestamp(),
-  }, { merge: true });
-  
-  // Setze als aktives Projekt
-  await setActiveProject(newProjectRef.id);
+  if (!currentUser) {
+    showToast("Nicht eingeloggt!", "error");
+    return;
+  }
+
+  try {
+    await setActiveProject(projectId);
+    
+    // Schließe Gate-Modal
+    closeProjectGateModal();
+    
+    // Zeige Wizard
+    showWizardAfterProjectLoaded();
+    
+    showToast("Projekt geladen!", "success");
+  } catch (error) {
+    console.error('[loadProject] Fehler:', error);
+    showToast("Fehler beim Laden: " + error.message, "error");
+  }
 }
 
 async function resolveActiveProject(user) {
@@ -3068,6 +3208,61 @@ function updateNavigationButtons(stepNumber) {
 
 
 // History Panel Functions
+// Setup Projekt-Gate-Modal
+function setupProjectGateModal() {
+  const btnCreateProject = document.getElementById('btn-create-project-ui');
+  const btnConfirmCreate = document.getElementById('btn-confirm-create');
+  const btnCancelCreate = document.getElementById('btn-cancel-create');
+  const createForm = document.getElementById('project-create-form');
+  const createSection = document.getElementById('project-create-section');
+  const nameInput = document.getElementById('new-project-name');
+
+  // Zeige Create-Form
+  if (btnCreateProject) {
+    btnCreateProject.addEventListener('click', () => {
+      if (createForm) createForm.classList.remove('hidden');
+      if (createSection) createSection.classList.add('hidden');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.value = '';
+      }
+    });
+  }
+
+  // Bestätige Erstellung
+  if (btnConfirmCreate) {
+    btnConfirmCreate.addEventListener('click', async () => {
+      const name = nameInput?.value?.trim();
+      if (!name) {
+        showToast("Bitte gib einen Projektnamen ein", "warning");
+        return;
+      }
+      await createNewProjectUI(name);
+    });
+    
+    // Enter-Taste im Input-Feld
+    if (nameInput) {
+      nameInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+          const name = nameInput.value.trim();
+          if (name) {
+            await createNewProjectUI(name);
+          }
+        }
+      });
+    }
+  }
+
+  // Abbrechen
+  if (btnCancelCreate) {
+    btnCancelCreate.addEventListener('click', () => {
+      if (createForm) createForm.classList.add('hidden');
+      if (createSection) createSection.classList.remove('hidden');
+      if (nameInput) nameInput.value = '';
+    });
+  }
+}
+
 function setupHistoryPanel() {
   const historyButton = document.getElementById('history-button');
   const historyButtonAuthed = document.getElementById('history-button-authed');
