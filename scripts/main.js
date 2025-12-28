@@ -3774,30 +3774,47 @@ async function exportToPDF() {
       </div>
     `;
 
-    // 6. Füge Ghost-Element zum Body hinzu (sichtbar für Druck-Dialog)
-    // WICHTIG: Wir verwenden window.print() statt html2pdf - das ist stabiler und blockiert nicht
+    // 6. Sammle Backup-Daten (Fields + Analysis Results)
+    const fields = getCurrentFieldValues();
+    const analysis = await getAnalysisData();
+    const backupData = {
+      version: '1.2',
+      date: Date.now(),
+      fields: fields,
+      analysis: analysis
+    };
+    const payload = "###VENTURE_DATA_START###" + JSON.stringify(backupData) + "###VENTURE_DATA_END###";
+
+    // 7. Füge Ghost-Element zum Body hinzu
     document.body.appendChild(ghostElement);
 
-    // 7. Kurz warten, damit Layout gerendert wird
+    // 8. Warte kurz, damit Layout gerendert wird
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    // 8. Button SOFORT wieder aktivieren (bevor Druck-Dialog öffnet)
+    // 9. Verwende html2pdf um PDF zu generieren und Daten einzufügen
+    const opt = {
+      margin: 0,
+      filename: `${projectName || 'VentureReport'}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // html2pdf mit Daten-Einbettung
+    await html2pdf().from(ghostElement).set(opt).toPdf().get('pdf').then((pdf) => {
+      // Füge Backup-Daten als versteckten Text ein (weiß auf weiß, sehr klein)
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(1);
+      pdf.text(payload, 10, 10); // Versteckt oben links
+    }).save();
+
+    // 10. Button wieder aktivieren
     btn.disabled = false;
     btnText.textContent = '📄 Als Investment Memo exportieren (PDF)';
     if (btnSpinner) btnSpinner.classList.add('hidden');
 
-    // 9. Öffne Browser-Druck-Dialog (sehr stabil, blockiert UI nicht)
-    // window.print() verwendet automatisch die @media print Styles
-    showToast('Öffne Druck-Dialog... Wähle "Als PDF speichern"', 'success');
-    
-    // Kurz warten, damit Toast sichtbar ist
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Druck-Dialog öffnen (blockiert nicht - Browser öffnet Dialog asynchron)
-    window.print();
-
     // Erfolg-Feedback
-    showToast('Druck-Dialog geöffnet. Wähle "Als PDF speichern".', 'success');
+    showToast('PDF erfolgreich erstellt mit Backup-Daten!', 'success');
     
     // 🎉 Confetti!
     if (typeof confetti !== 'undefined') {
