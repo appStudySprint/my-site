@@ -42,6 +42,11 @@
     <!-- html2pdf for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
+    <!-- Gremlins.js (Chaos Testing) -->
+    <script src="https://unpkg.com/gremlins.js"></script>
+    <!-- Sentry (Error Logging - Dummy DSN für Demo, loggt in Konsole wenn nicht konfiguriert) -->
+    <script src="https://js.sentry-cdn.com/d8b0246061324209930f735759902626.min.js" crossorigin="anonymous"></script>
+    
     <style>
         ::-webkit-scrollbar {
             width: 6px;
@@ -888,6 +893,8 @@
                     <span class="text-gray-600">•</span>
                     <a href="/legal/datenschutz.html" target="_blank" class="text-gray-500 hover:text-white transition-colors">Datenschutz</a>
                 </div>
+                <!-- QA Chaos Test Button (fast unsichtbar) -->
+                <button id="btn-chaos-test" class="mt-4 text-[10px] text-gray-800 hover:text-red-500 transition-colors opacity-50">👾 Bot-Test starten</button>
             </div>
         </footer>
 

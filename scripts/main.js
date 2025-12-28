@@ -3343,3 +3343,53 @@ async function finishProject() {
     btn.innerText = originalText;
   }
 }
+
+// ============================================
+// QA & CHAOS TESTING
+// ============================================
+
+document.getElementById('btn-chaos-test')?.addEventListener('click', startChaosMonkey);
+
+function startChaosMonkey() {
+  // Prüfe ob gremlins verfügbar ist
+  if (typeof gremlins === 'undefined') {
+    showToast("Gremlins.js nicht geladen!", "error");
+    console.error("Gremlins.js nicht verfügbar. Stelle sicher, dass die Bibliothek im Head eingebunden ist.");
+    return;
+  }
+
+  const confirmChaos = confirm("ACHTUNG: Dies startet 1000 zufällige Klicks (Gremlins). Die Seite wird wild flackern. Fortfahren?");
+  if (!confirmChaos) return;
+
+  showToast("👾 Gremlins freigelassen! Check die Konsole.", "warning");
+
+  gremlins.createHorde({
+    species: [
+      gremlins.species.clicker(), // Klickt überall
+      gremlins.species.formFiller(), // Füllt Inputs mit Unsinn
+      gremlins.species.toucher() // Simuliert Touch
+    ],
+    mogwais: [
+      gremlins.mogwais.alert(), // Verhindert Alerts (nervig)
+      gremlins.mogwais.fps(), // Überwacht Performance
+      gremlins.mogwais.gizmo() // Stoppt bei Fehlern
+    ],
+    strategies: [
+      gremlins.strategies.distribution({
+        delay: 50, // Schnell (50ms pro Aktion)
+        nb: 1000   // 1000 Aktionen
+      })
+    ]
+  }).unleash()
+  .then(() => {
+    showToast("✅ Chaos-Test überlebt!", "success");
+  })
+  .catch((err) => {
+    console.error("CRASH DURCH BOT:", err);
+    showToast("❌ App gecrasht! Siehe Konsole.", "error");
+    // Hier würde man den Fehler an Sentry senden
+    if (window.Sentry) {
+      Sentry.captureException(err);
+    }
+  });
+}
