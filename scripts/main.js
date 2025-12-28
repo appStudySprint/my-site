@@ -984,14 +984,21 @@ async function initializeForUser(user) {
 // Öffne das Projekt-Gate-Modal
 async function openProjectGateModal() {
   const modal = document.getElementById('project-gate-modal');
-  if (!modal) return;
+  if (!modal) {
+    console.error('[openProjectGateModal] Modal nicht gefunden!');
+    return;
+  }
+
+  console.log('[openProjectGateModal] Öffne Modal...');
 
   // Rendere Projekt-Liste
   await renderProjectList();
   
-  // Zeige Modal
+  // Zeige Modal (mit höchstem z-index)
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  
+  console.log('[openProjectGateModal] Modal sollte jetzt sichtbar sein');
 }
 
 // Schließe das Projekt-Gate-Modal
