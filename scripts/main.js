@@ -198,6 +198,11 @@ let activeProjectId = null;
 let activeProjectName = 'Persönliches Projekt';
 let currentMembership = { role: 'owner' };
 
+// Globale Variable für Analysis-Resolver (Promise-Pattern für Modal)
+if (typeof window !== 'undefined') {
+  window.analysisResolver = null;
+}
+
 // Throttled functions werden später initialisiert, nachdem die Funktionen definiert sind
 let throttledLocalSave = null;
 let throttledFirestoreSave = null;
@@ -1268,8 +1273,15 @@ function bindFieldListeners() {
           
           // Erfolg: Zeige "Gespeichert"
           if (saveStatus) {
-            saveStatus.textContent = 'Gespeichert';
-            saveStatus.style.color = 'green';
+            saveStatus.textContent = '✓ Gespeichert';
+            saveStatus.style.color = '#10b981'; // Grün
+            saveStatus.style.opacity = '1';
+            // Nach 2 Sekunden opacity auf 0 setzen
+            setTimeout(() => {
+              if (saveStatus) {
+                saveStatus.style.opacity = '0';
+              }
+            }, 2000);
           }
         } catch (error) {
           console.error(`[bindFieldListeners] Fehler beim Speichern von "${id}":`, error);
@@ -1295,8 +1307,9 @@ function bindFieldListeners() {
 
       // SOFORT: UI Feedback zeigen
       if (saveStatus) {
-        saveStatus.textContent = 'Tippt...';
-        saveStatus.style.color = 'yellow';
+        saveStatus.textContent = '✍️ Tippt...';
+        saveStatus.style.color = '#eab308'; // Gelb/Orange
+        saveStatus.style.opacity = '1';
       }
       
       // Rufe debounced Funktion auf
