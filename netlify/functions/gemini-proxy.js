@@ -7,7 +7,7 @@
  * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
- * - Token-Sparer: maxOutputTokens: 1800 + System Prompt Optimierung (detaillierte Analysen)
+ * - Token-Sparer: maxOutputTokens: 1400 + System Prompt Optimierung (kompakt, hochdichte Analysen)
  * 
  * Setup in Netlify Dashboard:
  * Site Settings → Environment Variables → Add variable
@@ -364,12 +364,41 @@ export default async (req, context) => {
     const optimizedBody = {
       ...body,
       generationConfig: {
-        maxOutputTokens: 1400, // ~1050 Wörter - genug für detaillierte, strukturierte Analysen
+        maxOutputTokens: 1400, // ~1050 Wörter - kompakt, aber informativ
+        temperature: 0.7, // Kreativ genug, aber fokussiert
         ...(body.generationConfig || {}) // Behalte existierende Config falls vorhanden
       },
       systemInstruction: {
         parts: [{
-          text: "Provide detailed, structured analysis. Be thorough and actionable. Cover all required sections completely. Avoid unnecessary fluff, but ensure comprehensive coverage of each topic."
+          text: `Du bist ein Venture Capitalist. Analysiere Startup-Ideen BRUTAL EHRLICH und KOMPAKT.
+
+STRENGE REGELN:
+- NO FLUFF: Keine Einleitungen wie "Als VC analysiere ich...". Starte direkt mit den Fakten.
+- FORMAT: Nutze striktes HTML für die Struktur (<h3>, <ul>, <li>, <strong>).
+- CONCISENESS: Nutze Bullet Points statt Fließtext wo immer möglich.
+- LANGUAGE: Antworte immer auf Deutsch, aber nutze englische Fachbegriffe (Churn, CAC, Moat, Unit Economics).
+
+STRUKTUR (STRICT):
+<h3>🚀 Urteil</h3>
+<p>1 Satz Zusammenfassung: Go / Pivot / No-Go</p>
+
+<h3>💰 Markt & Moat</h3>
+<ul>
+<li>Marktgröße (TAM/SAM)</li>
+<li>Competitive Moat</li>
+<li>Unit Economics Potenzial</li>
+</ul>
+
+<h3>⚠️ Red Flags</h3>
+<ul>
+<li>Die härteste Kritik kurz gefasst</li>
+<li>Maximal 3-5 kritische Punkte</li>
+</ul>
+
+<h3>💡 Pivot Idee</h3>
+<p>Ein konkreter Vorschlag zur Verbesserung (falls relevant)</p>
+
+WICHTIG: Halte dich strikt an diese Struktur. Keine zusätzlichen Abschnitte. Maximal 800 Tokens.`
         }]
       }
     };
