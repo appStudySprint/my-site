@@ -16,9 +16,84 @@ import {
   where,
 } from 'firebase/firestore';
 
-// ============================================
-// ZENTRALE API-KOMMUNIKATION (ROBUST)
-// ============================================
+// ===================================================================
+// === ANALYTICS & MONITORING (Sentry & Google Analytics) ===
+// ===================================================================
+
+/**
+ * Initialisiert Sentry für Error Logging
+ * Wird am Anfang von initializeForUser aufgerufen
+ * 
+ * Hinweis: Das Loader-Script (js-de.sentry-cdn.com) initialisiert Sentry automatisch.
+ * Diese Funktion konfiguriert zusätzliche Einstellungen, falls nötig.
+ */
+function initializeSentry() {
+  if (typeof Sentry === 'undefined') {
+    console.warn('[initializeSentry] Sentry SDK nicht geladen');
+    return;
+  }
+
+  try {
+    // Das Loader-Script initialisiert Sentry automatisch mit der DSN
+    // Wir können zusätzliche Konfigurationen setzen, falls die API verfügbar ist
+    if (typeof Sentry.configureScope === 'function') {
+      Sentry.configureScope((scope) => {
+        scope.setTag('environment', window.location.hostname === 'localhost' ? 'development' : 'production');
+      });
+    }
+
+    // Prüfe, ob Sentry bereits initialisiert wurde
+    try {
+      const client = Sentry.getCurrentHub?.()?.getClient?.();
+      if (client) {
+        console.log('[initializeSentry] Sentry bereits durch Loader-Script initialisiert');
+      } else {
+        console.log('[initializeSentry] Sentry wird durch Loader-Script initialisiert');
+      }
+    } catch (checkError) {
+      // API möglicherweise nicht verfügbar, aber Sentry funktioniert trotzdem
+      console.log('[initializeSentry] Sentry Loader-Script aktiv');
+    }
+
+    console.log('[initializeSentry] Sentry erfolgreich konfiguriert');
+  } catch (error) {
+    console.error('[initializeSentry] Fehler bei Sentry-Konfiguration:', error);
+  }
+}
+
+/**
+ * Helper-Funktion für Google Analytics 4 Event Tracking
+ * @param {string} action - Die Aktion (z.B. 'analysis_run', 'pdf_download')
+ * @param {string} label - Optional: Label für zusätzlichen Kontext
+ */
+function trackEvent(action, label = '') {
+  if (typeof gtag === 'undefined') {
+    console.warn('[trackEvent] Google Analytics nicht geladen');
+    return;
+  }
+
+  try {
+    const eventData = {
+      event_category: 'venture_validator',
+      event_label: label || action,
+    };
+
+    gtag('event', action, eventData);
+    console.log('[trackEvent] Event gesendet:', action, eventData);
+  } catch (error) {
+    console.error('[trackEvent] Fehler beim Senden des Events:', error);
+  }
+}
+
+// ===================================================================
+// === 1. IMPORTS & KONFIGURATION ===
+// ===================================================================
+
+// ===================================================================
+// === 6. AI ENGINE (Das Gehirn) ===
+// HINWEIS: Diese Funktionen stehen am Anfang, da sie von vielen anderen
+// Funktionen verwendet werden. Sie gehören inhaltlich zu Abschnitt 6.
+// ===================================================================
 
 /**
  * Zentrale Funktion für alle Gemini API-Aufrufe
@@ -124,6 +199,24 @@ async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
     return { text: aiResponse, sources };
 
   } catch (error) {
+    // Sende Fehler an Sentry
+    if (typeof Sentry !== 'undefined') {
+      try {
+        Sentry.captureException(error, {
+          tags: {
+            function: 'callGeminiAPI',
+            retryCount: retryCount,
+            useSearch: useSearch,
+          },
+          extra: {
+            userPrompt: userPrompt.substring(0, 200), // Erste 200 Zeichen für Kontext
+          },
+        });
+      } catch (sentryError) {
+        console.error('[callGeminiAPI] Fehler beim Senden an Sentry:', sentryError);
+      }
+    }
+
     // Falls der Fehler bereits von uns geworfen wurde, leite ihn weiter
     if (error.message.includes('überlastet') || error.message.includes('abgelehnt') || error.message.includes('Ungültige')) {
       throw error;
@@ -158,12 +251,12 @@ function cleanAndParseJSON(text) {
   }
 }
 
-// ============================================
-// ENDE ZENTRALE API-KOMMUNIKATION
-// ============================================
+// ===================================================================
+// === 1. KONFIGURATION: FIELD_IDS & Globale Variablen ===
+// ===================================================================
 
 // Alle Input/Textarea IDs, die gespeichert werden müssen (EXAKT wie im HTML)
-const fieldIds = [
+const FIELD_IDS = [
   'problem',              // Step 1: Problem
   'solution',             // Step 1: Lösung
   'pitch',                // Step 1: Elevator Pitch
@@ -178,6 +271,38 @@ const fieldIds = [
   'resources_stack',      // Step 6: Tech Stack
   'resources_budget',     // Step 6: Budget
   'resources_time',       // Step 6: Zeit
+];
+
+// Alias für Rückwärtskompatibilität
+const fieldIds = FIELD_IDS;
+
+// Demo-Ideen für Magic Dice Feature
+const DEMO_IDEAS = [
+  {
+    problem: "Landwirte haben Schwierigkeiten, ihre Traktoren und Maschinen effizient zu vermieten, wenn sie nicht genutzt werden. Viele teure Geräte stehen monatelang ungenutzt herum.",
+    solution: "Eine Plattform, die Landwirte mit anderen Landwirten oder kleinen Betrieben verbindet, um Traktoren, Mähdrescher und andere Agrar-Maschinen zu vermieten. Ähnlich wie Uber, aber für landwirtschaftliche Geräte mit GPS-Tracking, Versicherung und automatischer Abrechnung.",
+    pitch: "Uber für Traktoren: Vermiete deine Agrar-Maschinen, wenn du sie nicht brauchst, und verdiene passives Einkommen."
+  },
+  {
+    problem: "Kleine Unternehmen und Privatpersonen haben oft zu wenig Lagerraum, während andere ungenutzten Platz in Garagen, Kellern oder Lagerhallen haben. Die Suche nach passendem Lagerraum ist zeitaufwändig und teuer.",
+    solution: "Eine Marktplatz-App, die Lagerraum-Anbieter mit Suchenden verbindet. Nutzer können ihren verfügbaren Raum (Garage, Keller, Lagerhalle) mit Fotos, Größe und Preis anbieten. Suchende finden passenden Raum in ihrer Nähe, buchen online und zahlen sicher über die Plattform.",
+    pitch: "Airbnb für Lagerraum: Finde oder vermiete Lagerplatz in deiner Nachbarschaft - einfach, sicher und günstig."
+  },
+  {
+    problem: "Kinder mit Legasthenie und Lese-Rechtschreib-Schwäche bekommen oft nicht die individuelle Unterstützung, die sie brauchen. Schullehrer sind überlastet, und private Nachhilfe ist teuer und schwer verfügbar.",
+    solution: "Ein KI-gestützter Tutor, der sich an jeden Schüler individuell anpasst. Die App erkennt die spezifischen Schwierigkeiten, bietet personalisierte Übungen, liest Texte vor, korrigiert Fehler in Echtzeit und motiviert mit Gamification. Eltern und Lehrer erhalten detaillierte Fortschrittsberichte.",
+    pitch: "AI-Tutor für Legasthenie: Personalisierte Lernunterstützung, die sich an jedes Kind anpasst und echte Fortschritte macht."
+  },
+  {
+    problem: "Freelancer und kleine Agenturen verbringen zu viel Zeit mit Rechnungsstellung, Steuerdokumentation und Finanzplanung. Die Tools sind entweder zu komplex, zu teuer oder nicht auf deutsche Steuergesetze ausgelegt.",
+    solution: "Eine all-in-one Finanz-App speziell für deutsche Freelancer: Automatische Rechnungsgenerierung, Steuer-Vorbereitung, Einnahmen-Ausgaben-Tracking, und intelligente Steuertipps. Integriert mit DATEV und Elster, spricht Deutsch und erklärt alles in einfacher Sprache.",
+    pitch: "Finanz-Assistent für Freelancer: Von der Rechnung bis zur Steuererklärung - alles automatisch, alles auf Deutsch."
+  },
+  {
+    problem: "Senioren und Menschen mit eingeschränkter Mobilität haben Schwierigkeiten, frische Lebensmittel und Medikamente zu bekommen. Lieferdienste sind oft zu teuer oder liefern nicht in ländliche Gebiete.",
+    solution: "Eine Community-basierte Plattform, die Nachbarn miteinander verbindet. Jüngere Menschen können beim Einkaufen für Senioren mitbestellen, Senioren können sich gegenseitig helfen. Die App organisiert Einkaufsgruppen, teilt Fahrtkosten und belohnt Helfer mit einem Punktesystem oder kleinen Vergütungen.",
+    pitch: "Nachbarschafts-Einkaufshilfe: Jüngere helfen Älteren beim Einkaufen, alle profitieren - Community statt Isolation."
+  }
 ];
 
 const LOCAL_STORAGE_PREFIX = 'projektDashboardData';
@@ -211,6 +336,10 @@ let throttledFirestoreSave = null;
 // Wizard State Management
 let currentStep = 1;
 const totalSteps = 6;
+
+// ===================================================================
+// === 2. INITIALISIERUNG (Lifecycle) ===
+// ===================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[DOMContentLoaded] Starte Initialisierung');
@@ -283,14 +412,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Globale Window-Bindings (für onclick-Handler in HTML)
+if (typeof window !== 'undefined') {
+  window.analyzeSection = null; // Wird in Abschnitt 6 gesetzt
+  window.loadProject = null; // Wird in Abschnitt 4 gesetzt
+  window.switchProject = null; // Wird in Abschnitt 4 gesetzt
+}
+
+// ===================================================================
+// === 3. AUTH & ROUTING (Der Türsteher) ===
+// ===================================================================
+
+// Helper: Storage Key Generator
 function storageKey() {
   if (!currentUser || !activeProjectId) return `${LOCAL_STORAGE_PREFIX}:guest`;
   return `${LOCAL_STORAGE_PREFIX}:${activeProjectId}`;
 }
-
-// ============================================
-// ZENTRALE UI-STATE VERWALTUNG
-// ============================================
 
 function updateUIState(user) {
   const landing = document.getElementById('landing-page');
@@ -342,20 +479,12 @@ function updateUIState(user) {
   }
 }
 
-// ============================================
-// LOGIN HELPER FUNKTION
-// ============================================
-
 function triggerLogin() {
       signInWithPopup(auth, googleProvider).catch((error) => {
         console.error("Login Fehler:", error);
     showToast("Login fehlgeschlagen: " + error.message, "error");
   });
 }
-
-// ============================================
-// LANDING PAGE EVENTS SETUP
-// ============================================
 
 function setupLandingPageEvents() {
   console.log('[setupLandingPageEvents] Starte Setup');
@@ -376,6 +505,8 @@ function setupLandingPageEvents() {
   if (btnPlanPro) {
     btnPlanPro.addEventListener('click', () => {
       console.log('[setupLandingPageEvents] btn-plan-pro geklickt');
+      // GA4 Event: Upgrade Intent (Landing Page)
+      trackEvent('upgrade_intent', 'landing_page_pro_button');
       openWaitlistModal();
     });
   } else {
@@ -628,6 +759,8 @@ function setupUpgradeModal() {
   
   // "Zu den Preisen" Button -> Scrollt zur Pricing Section
   toPricingBtn.addEventListener('click', () => {
+    // GA4 Event: Upgrade Intent (Upgrade Modal)
+    trackEvent('upgrade_intent', 'upgrade_modal_to_pricing');
     closeUpgradeModal();
     const pricingSection = document.getElementById('pricing');
     if (pricingSection) {
@@ -775,6 +908,8 @@ function setupUpsellGate() {
   if (btnUpsellPro) {
     btnUpsellPro.addEventListener('click', () => {
       console.log('[setupUpsellGate] btn-upsell-pro geklickt');
+      // GA4 Event: Upgrade Intent (Upsell Gate)
+      trackEvent('upgrade_intent', 'upsell_gate_pro_button');
       closeUpsellGate();
       // Öffne Warteliste-Modal (waitlist-modal)
       const waitlistModal = document.getElementById('waitlist-modal');
@@ -871,10 +1006,6 @@ function closeUpsellGate() {
   toggleTeamSection(true);
 }
 
-// ============================================
-// DOWNSELL MODAL (Nach Warteliste)
-// ============================================
-
 function openDownsellModal() {
   const modal = document.getElementById('downsell-modal');
   if (modal) {
@@ -927,10 +1058,30 @@ function setupDownsellModal() {
   });
 }
 
+// ===================================================================
+// === 4. PROJEKT-MANAGEMENT (Gatekeeper) ===
+// ===================================================================
+
 async function initializeForUser(user) {
   console.log('[initializeForUser] START für User:', user.uid);
   
-  // SCHRITT 0: User-Profil synchronisieren (prüft IMMER waitlist Collection)
+  // SCHRITT 0: Initialisiere Sentry (ganz am Anfang, um Ladefehler zu fangen)
+  initializeSentry();
+  
+  // Setze User-Context für Sentry
+  if (typeof Sentry !== 'undefined') {
+    try {
+      Sentry.setUser({
+        id: user.uid,
+        email: user.email,
+        username: user.displayName || user.email,
+      });
+    } catch (error) {
+      console.error('[initializeForUser] Fehler beim Setzen des Sentry User-Context:', error);
+    }
+  }
+  
+  // SCHRITT 1: User-Profil synchronisieren (prüft IMMER waitlist Collection)
   console.log('[initializeForUser] syncUserProfile...');
   const profile = await syncUserProfile(user);
   
@@ -1064,40 +1215,66 @@ async function renderProjectList() {
   const container = document.getElementById('project-list-container');
   if (!container) return;
 
-  if (userProjects.length === 0) {
-    container.innerHTML = '<p class="text-gray-400 text-center">Noch keine Projekte vorhanden.</p>';
-    return;
-  }
+  try {
+    if (userProjects.length === 0) {
+      container.innerHTML = '<p class="text-gray-400 text-center">Noch keine Projekte vorhanden.</p>';
+      return;
+    }
 
-  container.innerHTML = userProjects.map(project => {
-    const createdAt = project.createdAt?.toDate ? project.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
-    const isActive = project.id === activeProjectId;
-    const statusBadge = project.status === 'completed' 
-      ? '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs">Abgeschlossen</span>'
-      : isActive
-      ? '<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs">Aktiv</span>'
-      : '<span class="bg-gray-500/20 text-gray-400 px-2 py-1 rounded-full text-xs">Offen</span>';
+    container.innerHTML = userProjects.map(project => {
+      const createdAt = project.createdAt?.toDate ? project.createdAt.toDate().toLocaleDateString('de-DE') : 'Unbekannt';
+      const isActive = project.id === activeProjectId;
+      const statusBadge = project.status === 'completed' 
+        ? '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs">Abgeschlossen</span>'
+        : isActive
+        ? '<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs">Aktiv</span>'
+        : '<span class="bg-gray-500/20 text-gray-400 px-2 py-1 rounded-full text-xs">Offen</span>';
+      
+      // Extrahiere Score falls vorhanden
+      let scoreDisplay = '';
+      if (project.results && project.results['hypothese']) {
+        // Versuche Score aus final-score Analyse zu extrahieren (falls vorhanden)
+        scoreDisplay = '<span class="text-xs text-gray-500">Score: -</span>';
+      }
+      
+      return `
+        <div class="glass-panel p-4 ${isActive ? 'border-2 border-blue-500' : 'cursor-pointer hover:bg-dark-800/50'} transition-colors" ${!isActive ? `onclick="loadProject('${project.id}')"` : ''}>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-white">${escapeHtml(project.name || 'Unbenanntes Projekt')}</h3>
+            ${statusBadge}
+          </div>
+          <div class="flex items-center justify-between text-sm text-gray-400">
+            <span>Erstellt: ${createdAt}</span>
+            ${scoreDisplay}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('[renderProjectList] Fehler beim Rendern der Projekt-Liste:', error);
     
-    // Extrahiere Score falls vorhanden
-    let scoreDisplay = '';
-    if (project.results && project.results['hypothese']) {
-      // Versuche Score aus final-score Analyse zu extrahieren (falls vorhanden)
-      scoreDisplay = '<span class="text-xs text-gray-500">Score: -</span>';
+    // Sende Fehler an Sentry
+    if (typeof Sentry !== 'undefined') {
+      try {
+        Sentry.captureException(error, {
+          tags: {
+            function: 'renderProjectList',
+          },
+          extra: {
+            userProjectsCount: userProjects?.length || 0,
+            activeProjectId: activeProjectId,
+          },
+        });
+      } catch (sentryError) {
+        console.error('[renderProjectList] Fehler beim Senden an Sentry:', sentryError);
+      }
     }
     
-    return `
-      <div class="glass-panel p-4 ${isActive ? 'border-2 border-blue-500' : 'cursor-pointer hover:bg-dark-800/50'} transition-colors" ${!isActive ? `onclick="loadProject('${project.id}')"` : ''}>
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-bold text-white">${escapeHtml(project.name || 'Unbenanntes Projekt')}</h3>
-          ${statusBadge}
-        </div>
-        <div class="flex items-center justify-between text-sm text-gray-400">
-          <span>Erstellt: ${createdAt}</span>
-          ${scoreDisplay}
-        </div>
-      </div>
-    `;
-  }).join('');
+    // Zeige Fehlermeldung im Container
+    if (container) {
+      container.innerHTML = '<p class="text-red-400 text-center">Fehler beim Laden der Projekte. Bitte Seite neu laden.</p>';
+    }
+  }
 }
 
 // Verstecke Wizard bis Projekt geladen
@@ -1266,6 +1443,57 @@ async function resolveActiveProject(user) {
   // Kein aktives Projekt gefunden -> erstelle neues
   console.log('[resolveActiveProject] Erstelle neues Projekt');
   await createNewProject(user);
+}
+
+// Erstelle ein neues Projekt ohne UI (wird von finishProject und resolveActiveProject verwendet)
+async function createNewProject(user) {
+  if (!user) {
+    console.error('[createNewProject] KEIN USER - Abbrechen');
+    return;
+  }
+
+  try {
+    const planFromProfile = userProfile?.plan || 'free';
+    const initialFields = getCurrentFieldValues();
+    
+    const projectsRef = collection(db, 'projects');
+    const newProjectRef = await addDoc(projectsRef, {
+      ownerId: user.uid,
+      name: 'Neues Projekt',
+      plan: planFromProfile,
+      status: 'active',
+      fields: initialFields,
+      results: {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    
+    console.log('[createNewProject] Neues Projekt erstellt:', newProjectRef.id);
+    
+    // Erstelle Mitgliedschaft
+    await setDoc(doc(db, 'projects', newProjectRef.id, 'members', user.uid), {
+      role: 'owner',
+      email: user.email ?? '',
+      displayName: user.displayName ?? '',
+      addedAt: serverTimestamp(),
+    }, { merge: true });
+    
+    // Füge zum userProjects Array hinzu
+    userProjects.unshift({
+      id: newProjectRef.id,
+      name: 'Neues Projekt',
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    // Lade das Projekt
+    await loadProject(newProjectRef.id);
+    
+  } catch (error) {
+    console.error('[createNewProject] Fehler:', error);
+    showToast("Fehler beim Erstellen: " + error.message, "error");
+  }
 }
 
 async function setActiveProject(projectId) {
@@ -2115,6 +2343,7 @@ function initializeThrottledFunctions() {
 // TOAST SYSTEM (Professional Feedback)
 // ============================================
 
+// Toast-Utility für Benachrichtigungen
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   const isError = type === 'error';
@@ -2188,7 +2417,7 @@ function showSavedFeedback(message) {
   }, 1200);
 }
 
-// Markdown zu HTML Konverter (verbessert)
+// Markdown zu HTML Konverter
 function markdownToHtml(markdown) {
   if (!markdown) return '';
   
@@ -2295,6 +2524,10 @@ function markdownToHtml(markdown) {
   
   return html;
 }
+
+// ===================================================================
+// === 6. AI ENGINE (Das Gehirn) - Fortsetzung ===
+// ===================================================================
 
 async function analyzeSection(sectionName) {
   console.log('[analyzeSection] Start für Sektion:', sectionName);
@@ -2539,6 +2772,9 @@ Antworte im Markdown-Format:
         
         showAnalysisSavedFeedback(btn);
         showSavedFeedback('Analyse gespeichert');
+        
+        // GA4 Event: Analyse erfolgreich durchgeführt
+        trackEvent('analysis_run', sectionName);
       } catch (saveError) {
         console.error('Fehler beim Speichern der Analyse:', saveError);
         // Nicht kritisch - zeige Fehler nur in Console, nicht im UI
@@ -3057,6 +3293,115 @@ Antworte NUR als JSON:
   }
 }
 
+/**
+ * Rendert das Venture Radar Chart mit Chart.js
+ * @param {object} scoreData - Score-Daten mit breakdown
+ */
+function renderRadarChart(scoreData) {
+  // Zerstöre alte Chart-Instanz, falls vorhanden
+  if (window.myRadar) {
+    window.myRadar.destroy();
+    window.myRadar = null;
+  }
+
+  const canvas = document.getElementById('ventureRadarChart');
+  const container = document.getElementById('venture-radar-container');
+  
+  if (!canvas || !container) {
+    console.warn('[renderRadarChart] Canvas oder Container nicht gefunden');
+    return;
+  }
+
+  // Zeige Container
+  container.classList.remove('hidden');
+
+  const breakdown = scoreData.breakdown || {};
+  
+  // Berechne Finanz-Score (nutze feasibility als Fallback, falls nicht separat vorhanden)
+  const financeScore = breakdown.finance || breakdown.feasibility || 0;
+  
+  // Daten für Radar-Chart
+  const data = {
+    labels: ['Markt', 'Innovation', 'Umsetzung', 'Finanzen'],
+    datasets: [{
+      label: 'VC Readiness',
+      data: [
+        Math.round(breakdown.market || 0),
+        Math.round(breakdown.innovation || 0),
+        Math.round(breakdown.feasibility || 0),
+        Math.round(financeScore)
+      ],
+      backgroundColor: 'rgba(99, 102, 241, 0.2)', // Indigo mit Transparenz
+      borderColor: 'rgba(99, 102, 241, 1)', // Indigo fest
+      borderWidth: 2,
+      pointBackgroundColor: 'rgba(99, 102, 241, 1)',
+      pointBorderColor: '#fff',
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: 'rgba(99, 102, 241, 1)'
+    }]
+  };
+
+  // Chart.js Konfiguration
+  const config = {
+    type: 'radar',
+    data: data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: 100,
+          min: 0,
+          ticks: {
+            stepSize: 20,
+            color: 'rgba(156, 163, 175, 0.8)', // Gray-400
+            font: {
+              size: 11
+            }
+          },
+          grid: {
+            color: 'rgba(156, 163, 175, 0.2)' // Gray-400 mit Transparenz
+          },
+          pointLabels: {
+            color: 'rgba(229, 231, 235, 1)', // Gray-200
+            font: {
+              size: 13,
+              weight: '500'
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(17, 24, 39, 0.9)', // Gray-900
+          titleColor: 'rgba(229, 231, 235, 1)', // Gray-200
+          bodyColor: 'rgba(229, 231, 235, 1)',
+          borderColor: 'rgba(99, 102, 241, 0.5)',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: function(context) {
+              return context.label + ': ' + context.parsed.r + '/100';
+            }
+          }
+        }
+      }
+    }
+  };
+
+  // Erstelle Chart
+  try {
+    window.myRadar = new Chart(canvas, config);
+  } catch (error) {
+    console.error('[renderRadarChart] Fehler beim Erstellen des Charts:', error);
+    container.classList.add('hidden');
+  }
+}
+
 function renderScore(scoreData) {
   const scoreCircle = document.getElementById('score-circle');
   const scoreValue = document.getElementById('score-value');
@@ -3102,12 +3447,64 @@ function renderScore(scoreData) {
   document.getElementById('score-feasibility-value').textContent = `${feasibilityValue}/100`;
   document.getElementById('score-feasibility-bar').style.width = `${feasibilityValue}%`;
 
+  // Rendere Radar Chart
+  renderRadarChart(scoreData);
+
   // Animation
   setTimeout(() => {
     scoreCircle.style.transform = 'scale(1.05)';
     setTimeout(() => {
       scoreCircle.style.transform = 'scale(1)';
     }, 200);
+  }, 100);
+}
+
+/**
+ * Magic Dice: Generiert eine zufällige Startup-Idee und füllt die Felder aus
+ */
+function generateRandomIdea() {
+  if (!DEMO_IDEAS || DEMO_IDEAS.length === 0) {
+    showToast('Keine Demo-Ideen verfügbar', 'warning');
+    return;
+  }
+
+  // Wähle zufällige Idee
+  const randomIndex = Math.floor(Math.random() * DEMO_IDEAS.length);
+  const idea = DEMO_IDEAS[randomIndex];
+
+  // Hole Input-Felder
+  const problemInput = document.getElementById('problem');
+  const solutionInput = document.getElementById('solution');
+  const pitchInput = document.getElementById('pitch');
+
+  if (!problemInput || !solutionInput || !pitchInput) {
+    console.error('[generateRandomIdea] Input-Felder nicht gefunden');
+    return;
+  }
+
+  // Fülle Felder aus
+  problemInput.value = idea.problem;
+  solutionInput.value = idea.solution;
+  pitchInput.value = idea.pitch;
+
+  // Autosize und Trigger Auto-Save
+  [problemInput, solutionInput, pitchInput].forEach(field => {
+    // Autosize anpassen
+    if (typeof autosize === 'function') {
+      autosize(field);
+    }
+    
+    // Input-Event simulieren für Auto-Save
+    const inputEvent = new Event('input', { bubbles: true });
+    field.dispatchEvent(inputEvent);
+  });
+
+  // Zeige Feedback
+  showToast('🎲 Zufällige Idee geladen!', 'success');
+  
+  // Optional: Scroll zu den Feldern für bessere UX
+  setTimeout(() => {
+    problemInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 100);
 }
 
@@ -3144,6 +3541,12 @@ function setupAnalyzeButtons() {
   if (finalScoreButton) {
     finalScoreButton.addEventListener('click', calculateFinalScore);
   }
+
+  // Event-Listener für Magic Dice Button
+  const magicDiceButton = document.getElementById('btn-magic-dice');
+  if (magicDiceButton) {
+    magicDiceButton.addEventListener('click', generateRandomIdea);
+  }
 }
 
 // Wizard Functions
@@ -3156,6 +3559,10 @@ function setupWizard() {
       }
     });
   });
+
+// ===================================================================
+// === 5. CORE LOGIK (Wizard & Daten) ===
+// ===================================================================
 
   document.querySelectorAll('.wizard-nav-back').forEach((button) => {
     button.addEventListener('click', () => {
@@ -3231,6 +3638,7 @@ function showStep(stepNumber) {
 }
 
 function updateProgressBar(stepNumber) {
+  // Desktop Stepper
   document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
     const stepNum = index + 1;
     indicator.classList.remove('active', 'completed');
@@ -3250,6 +3658,30 @@ function updateProgressBar(stepNumber) {
       connector.classList.add('completed');
     }
   });
+
+  // Mobile Progress Indicator
+  const mobileStepText = document.getElementById('mobile-step-text');
+  const mobileProgressBar = document.getElementById('mobile-progress-bar');
+  
+  if (mobileStepText && mobileProgressBar) {
+    const stepNames = ['Hypothese', 'Persona', 'MVP', 'Validierung', 'Ressourcen', 'Team'];
+    const stepName = stepNames[stepNumber - 1] || 'Unbekannt';
+    mobileStepText.textContent = `Schritt ${stepNumber}/6: ${stepName}`;
+    
+    // Update Progress Bar
+    mobileProgressBar.value = stepNumber;
+    mobileProgressBar.max = 6;
+    
+    // Fallback für Browser ohne native Progress-Bar (nutze innere div für visuelles Feedback)
+    let progressFill = mobileProgressBar.querySelector('div');
+    if (!progressFill) {
+      progressFill = document.createElement('div');
+      progressFill.className = 'h-full bg-blue-500 rounded-full transition-all duration-300';
+      mobileProgressBar.appendChild(progressFill);
+    }
+    const progressValue = (stepNumber / 6) * 100;
+    progressFill.style.width = `${progressValue}%`;
+  }
 }
 
 function updateNavigationButtons(stepNumber) {
@@ -3348,6 +3780,14 @@ function setupProjectGateModal() {
     
     pdfUpload.addEventListener('change', (event) => {
       handlePDFImport(event);
+    });
+  }
+
+  // Schließen-Button für Projekt-Gate-Modal
+  const btnCloseProjectGate = document.getElementById('btn-close-project-gate');
+  if (btnCloseProjectGate) {
+    btnCloseProjectGate.addEventListener('click', () => {
+      closeProjectGateModal();
     });
   }
 }
@@ -3606,18 +4046,9 @@ function calculateBreakEven() {
   }
 }
 
-// ============================================
-// PDF EXPORT FUNCTION (Simplified & Fixed)
-// ============================================
-
-// ============================================
-// PDF EXPORT FUNCTION (Robust & Safe)
-// ============================================
-
-// ============================================
-// PDF EXPORT - "GHOST-WRITER" METHODE
-// Programmatisches Zusammenbauen des PDFs
-// ============================================
+// ===================================================================
+// === 7. FEATURES & UTILS (Werkzeuge) ===
+// ===================================================================
 
 async function exportToPDF() {
   // Feature Gating: PDF-Export ist Premium-Feature
@@ -3916,6 +4347,9 @@ async function exportToPDF() {
 
     // Erfolg-Feedback
     showToast('PDF erfolgreich erstellt mit Backup-Daten!', 'success');
+    
+    // GA4 Event: PDF erfolgreich exportiert
+    trackEvent('pdf_download', 'investment_memo');
     
     // 🎉 Confetti!
     if (typeof confetti !== 'undefined') {
