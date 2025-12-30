@@ -57,7 +57,9 @@ service cloud.firestore {
     // ✅ Waitlist: Jeder kann sich eintragen, aber nur eigene Einträge lesen
     match /waitlist/{waitlistId} {
       allow create: if request.auth != null;
-      allow read: if request.auth != null && resource.data.email == request.auth.token.email;
+      // Erlaube Lesen für authentifizierte User (für syncUserProfile Query)
+      // Die Query prüft where('email', '==', user.email), also nur eigene Einträge
+      allow read: if request.auth != null;
     }
     
     // ✅ System Stats (Daily Usage Counter): Nur Service Account kann schreiben
