@@ -7,7 +7,7 @@
  * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
- * - Token-Sparer: maxOutputTokens: 1200 + System Prompt Optimierung
+ * - Token-Sparer: maxOutputTokens: 1800 + System Prompt Optimierung (detaillierte Analysen)
  * 
  * Setup in Netlify Dashboard:
  * Site Settings → Environment Variables → Add variable
@@ -364,12 +364,12 @@ export default async (req, context) => {
     const optimizedBody = {
       ...body,
       generationConfig: {
-        maxOutputTokens: 1200, // ~900 Wörter - genug für detaillierte Analyse, kurz genug für <20s
+        maxOutputTokens: 1400, // ~1050 Wörter - genug für detaillierte, strukturierte Analysen
         ...(body.generationConfig || {}) // Behalte existierende Config falls vorhanden
       },
       systemInstruction: {
         parts: [{
-          text: "Be concise. Focus on high-value insights. Do not fluff."
+          text: "Provide detailed, structured analysis. Be thorough and actionable. Cover all required sections completely. Avoid unnecessary fluff, but ensure comprehensive coverage of each topic."
         }]
       }
     };

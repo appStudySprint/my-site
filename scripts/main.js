@@ -831,6 +831,7 @@ async function checkBetaCap() {
     
     const banner = document.getElementById('beta-cap-banner');
     const analyzeButtons = document.querySelectorAll('[id^="analyze-"]');
+    const finalScoreButton = document.getElementById('btn-final-score');
     const inputFields = document.querySelectorAll('#problem, #solution, #pitch, #persona_name, #persona_demographics, #persona_pains, #persona_gains, #mvp_features, #mvp_anti_features, #validation_method, #validation_success');
     
     if (betaCount >= MAX_BETA_ANALYSES) {
@@ -845,6 +846,11 @@ async function checkBetaCap() {
           btn.style.display = 'none';
         }
       });
+      
+      // Verstecke VC Score Button
+      if (finalScoreButton) {
+        finalScoreButton.style.display = 'none';
+      }
       
       // Verstecke Input-Felder (optional - kann auch sichtbar bleiben)
       // inputFields.forEach(field => {
@@ -864,6 +870,11 @@ async function checkBetaCap() {
           btn.style.display = '';
         }
       });
+      
+      // Zeige VC Score Button
+      if (finalScoreButton) {
+        finalScoreButton.style.display = '';
+      }
       
       console.log(`✅ Beta Cap OK: ${betaCount}/${MAX_BETA_ANALYSES}`);
     }
@@ -3299,6 +3310,21 @@ function escapeHtml(text) {
 // ============================================
 
 async function calculateFinalScore() {
+  // Prüfe Beta Cap vor VC Score Berechnung
+  try {
+    const docRef = doc(db, 'system_stats', 'global_beta_count');
+    const docSnap = await getDoc(docRef);
+    const betaCount = docSnap.exists() ? (docSnap.data()?.count || 0) : 0;
+    
+    if (betaCount >= 100) {
+      showToast('Beta-Zugang voll ausgelastet! Wir skalieren unsere Server gerade. Bitte versuche es später erneut.', 'warning');
+      return;
+    }
+  } catch (error) {
+    console.warn('⚠️ Fehler beim Prüfen des Beta Caps in calculateFinalScore:', error);
+    // Weiter mit Berechnung (Fail-Safe)
+  }
+  
   const button = document.getElementById('btn-final-score');
   const spinner = document.getElementById('spinner-final-score');
   const scoreCircle = document.getElementById('score-circle');
