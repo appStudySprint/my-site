@@ -156,11 +156,26 @@ async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch('/.netlify/functions/gemini-proxy', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(requestBody)
-    });
+    // Frontend Timeout: 28 Sekunden (gibt der KI maximale Zeit, aber bleibt unter Backend-Limit)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 28000);
+    
+    let response;
+    try {
+      response = await fetch('/.netlify/functions/gemini-proxy', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Die Anfrage hat zu lange gedauert. Bitte versuche es mit kürzerem Input erneut.');
+      }
+      throw fetchError;
+    }
 
     // Behandle verschiedene HTTP-Status-Codes
     if (response.status === 401) {

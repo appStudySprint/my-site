@@ -7,7 +7,7 @@
  * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
- * - Token-Sparer: maxOutputTokens: 1400 + System Prompt Optimierung (kompakt, hochdichte Analysen)
+ * - Token-Sparer: maxOutputTokens: 2500 + System Prompt Optimierung (akademische Gründlichkeit, 500-800 Wörter)
  * 
  * Setup in Netlify Dashboard:
  * Site Settings → Environment Variables → Add variable
@@ -364,47 +364,46 @@ export default async (req, context) => {
     const optimizedBody = {
       ...body,
       generationConfig: {
-        maxOutputTokens: 1400, // ~1050 Wörter - kompakt, aber informativ
+        maxOutputTokens: 2500, // ~1875 Wörter - akademische Gründlichkeit
         temperature: 0.7, // Kreativ genug, aber fokussiert
         ...(body.generationConfig || {}) // Behalte existierende Config falls vorhanden
       },
       systemInstruction: {
         parts: [{
-          text: `Du bist ein Venture Capitalist. Analysiere Startup-Ideen BRUTAL EHRLICH und KOMPAKT.
+          text: `Du bist ein universitärer Venture Capital Analyst. Deine Aufgabe ist akademische Gründlichkeit. Vermeide Ein-Wort-Urteile. Begründe jede Aussage mit ökonomischen Prinzipien (Unit Economics, CAC/LTV, Markt-Dynamik).
 
-STRENGE REGELN:
-- NO FLUFF: Keine Einleitungen wie "Als VC analysiere ich...". Starte direkt mit den Fakten.
-- FORMAT: Nutze striktes HTML für die Struktur (<h3>, <ul>, <li>, <strong>).
-- CONCISENESS: Nutze Bullet Points statt Fließtext wo immer möglich.
-- LANGUAGE: Antworte immer auf Deutsch, aber nutze englische Fachbegriffe (Churn, CAC, Moat, Unit Economics).
+FORMAT: Nutze striktes HTML für die Struktur (<h3>, <ul>, <li>, <strong>, <p>).
+LANGUAGE: Antworte immer auf Deutsch, aber nutze englische Fachbegriffe (Churn, CAC, LTV, Moat, Unit Economics, TAM/SAM/SOM).
 
-STRUKTUR (STRICT):
-<h3>🚀 Urteil</h3>
-<p>1 Satz Zusammenfassung: Go / Pivot / No-Go</p>
+STRUKTUR (HTML):
+<h3>🧐 Executive Summary</h3>
+<p>Detaillierte Einordnung der Idee mit ökonomischer Begründung. Keine oberflächlichen Urteile. Erkläre WARUM eine Idee Potenzial hat oder nicht.</p>
 
-<h3>💰 Markt & Moat</h3>
+<h3>📊 Marktanalyse</h3>
 <ul>
-<li>Marktgröße (TAM/SAM)</li>
-<li>Competitive Moat</li>
-<li>Unit Economics Potenzial</li>
+<li>TAM/SAM/SOM Schätzung mit Begründung</li>
+<li>Wettbewerbsanalyse (Competitive Landscape)</li>
+<li>Markt-Dynamik und Wachstumspotenzial</li>
+<li>Unit Economics Potenzial (CAC, LTV, Payback Period)</li>
 </ul>
 
-<h3>⚠️ Red Flags</h3>
+<h3>⚠️ Risiko-Analyse</h3>
 <ul>
-<li>Die härteste Kritik kurz gefasst</li>
-<li>Maximal 3-5 kritische Punkte</li>
+<li>Detaillierte Auflistung aller kritischen Risiken</li>
+<li>Begründung mit ökonomischen Prinzipien</li>
+<li>Bewertung der Wahrscheinlichkeit und des Impacts</li>
 </ul>
 
-<h3>💡 Pivot Idee</h3>
-<p>Ein konkreter Vorschlag zur Verbesserung (falls relevant)</p>
+<h3>💡 Strategische Empfehlung</h3>
+<p>Konkrete nächste Schritte mit Begründung. Falls Pivot nötig: Detaillierte Erklärung WARUM und WIE.</p>
 
-WICHTIG: Halte dich strikt an diese Struktur. Keine zusätzlichen Abschnitte. Maximal 800 Tokens.`
+UMFANG: Sei ausführlich. Schreibe ca. 500-800 Wörter. Begründe jede Aussage. Vermeide oberflächliche Urteile wie "No-Go" ohne Erklärung.`
         }]
       }
     };
 
     // 🔒 SCHRITT 6: Timeout-Schutz (verhindert hängende Requests und Kosten)
-    const TIMEOUT_MS = 30000; // 30 Sekunden harter Timeout (erhöht für komplexe Anfragen)
+    const TIMEOUT_MS = 28000; // 28 Sekunden harter Timeout (maximale Zeit für ausführliche Analysen)
     
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
@@ -428,12 +427,12 @@ WICHTIG: Halte dich strikt an diese Struktur. Keine zusätzlichen Abschnitte. Ma
         clearTimeout(timeoutId);
         
         if (fetchError.name === 'AbortError') {
-          console.error('⏱️ Request Timeout nach 30 Sekunden');
+          console.error('⏱️ Request Timeout nach 28 Sekunden');
           return new Response(
             JSON.stringify({ 
               error: 'Request timeout',
               message: 'The request took too long and was aborted to prevent cost explosion.',
-              maxTimeout: '30 seconds'
+              maxTimeout: '28 seconds'
             }),
             { status: 408, headers }
           );
