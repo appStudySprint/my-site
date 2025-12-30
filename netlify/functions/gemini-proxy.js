@@ -4,7 +4,7 @@
  * 🔒 MAXIMALE SICHERHEIT:
  * - Firebase Auth Token Validierung (Pflicht)
  * - Input-Längen-Validierung (max 2000 Zeichen)
- * - Timeout-Schutz (15 Sekunden)
+ * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
  * - Token-Sparer: maxOutputTokens: 1000
@@ -258,7 +258,7 @@ export default async (req, context) => {
     }
 
     // 🔒 SCHRITT 6: Timeout-Schutz (verhindert hängende Requests und Kosten)
-    const TIMEOUT_MS = 15000; // 15 Sekunden harter Timeout
+    const TIMEOUT_MS = 30000; // 30 Sekunden harter Timeout (erhöht für komplexe Anfragen)
     
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
@@ -282,12 +282,12 @@ export default async (req, context) => {
         clearTimeout(timeoutId);
         
         if (fetchError.name === 'AbortError') {
-          console.error('⏱️ Request Timeout nach 15 Sekunden');
+          console.error('⏱️ Request Timeout nach 30 Sekunden');
           return new Response(
             JSON.stringify({ 
               error: 'Request timeout',
               message: 'The request took too long and was aborted to prevent cost explosion.',
-              maxTimeout: '15 seconds'
+              maxTimeout: '30 seconds'
             }),
             { status: 408, headers }
           );

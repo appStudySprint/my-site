@@ -62,6 +62,43 @@ service cloud.firestore {
       allow read: if request.auth != null;
     }
     
+    // ✅ Project Invites: Einladungen für Projekte
+    match /projectInvites/{inviteId} {
+      // Erstellen: Nur Owner des Projekts kann Einladungen erstellen
+      allow create: if request.auth != null 
+        && request.resource.data.projectId != null
+        && get(/databases/$(database)/documents/projects/$(request.resource.data.projectId)).data.ownerId == request.auth.uid;
+      
+      // Lesen: Owner des Projekts ODER eingeladene Person
+      // Für Queries: Erlaube für authentifizierte User (Query filtert bereits nach projectId/email)
+      allow get: if request.auth != null && (
+        // Owner des Projekts
+        (resource.data.projectId != null && 
+         get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.ownerId == request.auth.uid) ||
+        // ODER eingeladene Person
+        (resource.data.invitedEmail != null && 
+         resource.data.invitedEmail.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
+      
+      // Collection-Queries: Erlaube für authentifizierte User (App filtert nach projectId/email)
+      allow list: if request.auth != null;
+      
+      // Aktualisieren: Owner des Projekts ODER eingeladene Person (für accept/dismiss)
+      allow update: if request.auth != null && (
+        // Owner des Projekts
+        (resource.data.projectId != null && 
+         get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.ownerId == request.auth.uid) ||
+        // ODER eingeladene Person (kann status, acceptedAt, dismissedAt, etc. ändern)
+        (resource.data.invitedEmail != null && 
+         resource.data.invitedEmail.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
+      
+      // Löschen: Nur Owner des Projekts
+      allow delete: if request.auth != null 
+        && resource.data.projectId != null
+        && get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.ownerId == request.auth.uid;
+    }
+    
     // ✅ System Stats (Daily Usage Counter): Nur Service Account kann schreiben
     // Diese Collection wird von der Netlify Function (mit Service Account) beschrieben
     match /system_stats/{date} {
