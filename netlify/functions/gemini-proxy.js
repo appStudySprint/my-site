@@ -7,7 +7,7 @@
  * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
- * - Token-Sparer: maxOutputTokens: 1000
+ * - Token-Sparer: maxOutputTokens: 1200 + System Prompt Optimierung
  * 
  * Setup in Netlify Dashboard:
  * Site Settings → Environment Variables → Add variable
@@ -257,6 +257,21 @@ export default async (req, context) => {
       );
     }
 
+    // 🔒 SCHRITT 5: Token-Limit & System Prompt Optimierung
+    // Füge generationConfig und systemInstruction hinzu, um Antwortlänge zu begrenzen
+    const optimizedBody = {
+      ...body,
+      generationConfig: {
+        maxOutputTokens: 1200, // ~900 Wörter - genug für detaillierte Analyse, kurz genug für <20s
+        ...(body.generationConfig || {}) // Behalte existierende Config falls vorhanden
+      },
+      systemInstruction: {
+        parts: [{
+          text: "Be concise. Focus on high-value insights. Do not fluff."
+        }]
+      }
+    };
+
     // 🔒 SCHRITT 6: Timeout-Schutz (verhindert hängende Requests und Kosten)
     const TIMEOUT_MS = 30000; // 30 Sekunden harter Timeout (erhöht für komplexe Anfragen)
     
@@ -274,7 +289,7 @@ export default async (req, context) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(optimizedBody),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
