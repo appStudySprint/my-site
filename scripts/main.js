@@ -3106,6 +3106,59 @@ function checkFeatureAccess(featureName) {
   return false;
 }
 
+/**
+ * Kürzt eine VC-Analyse auf die wichtigsten Punkte (~100 Wörter)
+ * Extrahiert: Red Flags, Risiko-Analyse, kritische Schwachstellen
+ * Funktioniert mit HTML-Format (Professor Mode) und Markdown
+ */
+function summarizeVCAnalysis(fullAnalysis) {
+  // Entferne HTML-Tags für einfachere Verarbeitung, behalte aber Struktur
+  const textOnly = fullAnalysis.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Suche nach wichtigen Abschnitten (funktioniert mit HTML und Markdown)
+  const patterns = {
+    redFlags: /(?:⚠️|Red Flags?|Risiko-Analyse|kritisch|Schwachstellen?)[^.]*(?:\.[^.]*){0,10}/gi,
+    verdict: /(?:🚀|🧐|Urteil|Executive Summary|Fazit)[^.]*(?:\.[^.]*){0,5}/gi,
+    problems: /(?:Problem|Schwäche|Fehler|Risiko)[^.]*(?:\.[^.]*){0,5}/gi
+  };
+  
+  // Extrahiere die wichtigsten Abschnitte
+  const sections = [];
+  
+  // Red Flags / Risiko-Analyse (höchste Priorität)
+  const redFlagsMatch = textOnly.match(patterns.redFlags);
+  if (redFlagsMatch) {
+    sections.push(redFlagsMatch[0].substring(0, 300)); // Max 300 Zeichen
+  }
+  
+  // Verdict / Executive Summary
+  const verdictMatch = textOnly.match(patterns.verdict);
+  if (verdictMatch) {
+    sections.push(verdictMatch[0].substring(0, 200)); // Max 200 Zeichen
+  }
+  
+  // Probleme / Schwachstellen
+  const problemsMatch = textOnly.match(patterns.problems);
+  if (problemsMatch && problemsMatch[0] !== redFlagsMatch?.[0]) {
+    sections.push(problemsMatch[0].substring(0, 200)); // Max 200 Zeichen
+  }
+  
+  // Kombiniere die wichtigsten Teile
+  let summary = sections.join(' ').trim();
+  
+  // Falls nichts gefunden, nimm die ersten 100 Wörter
+  if (!summary) {
+    const words = textOnly.split(' ').slice(0, 100);
+    summary = words.join(' ');
+  } else {
+    // Kürze auf ~100 Wörter (ca. 700 Zeichen)
+    const words = summary.split(' ').slice(0, 100);
+    summary = words.join(' ');
+  }
+  
+  return summary.trim();
+}
+
 async function pivotIdea() {
   // Feature Gating: Pivot ist Premium-Feature
   if (!checkFeatureAccess('pivot')) {
@@ -3133,12 +3186,15 @@ async function pivotIdea() {
   pivotButtonText.textContent = 'Optimiere Idee...';
 
   try {
+    // Kürze die VC-Analyse auf die wichtigsten Punkte (~100 Wörter)
+    const summarizedAnalysis = summarizeVCAnalysis(lastHypothesisAnalysis.outputText);
+    
     // Erstelle den Pivot-Prompt
     const pivotPrompt = `Hier ist meine Startup-Idee:
 ${lastHypothesisAnalysis.inputText}
 
-Hier ist das VC-Feedback dazu:
-${lastHypothesisAnalysis.outputText}
+Hier sind die wichtigsten Kritikpunkte aus dem VC-Feedback (gekürzt):
+${summarizedAnalysis}
 
 DEINE AUFGABE:
 Schreibe das Problem und die Lösung komplett neu, um die kritischen Schwachstellen zu beheben.

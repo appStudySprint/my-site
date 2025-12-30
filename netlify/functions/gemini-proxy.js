@@ -3,7 +3,7 @@
  * 
  * 🔒 MAXIMALE SICHERHEIT:
  * - Firebase Auth Token Validierung (Pflicht)
- * - Input-Längen-Validierung (max 2000 Zeichen)
+ * - Input-Längen-Validierung (max 6000 Zeichen - Pivot-Button kürzt Hypothese-Analysen automatisch)
  * - Timeout-Schutz (30 Sekunden)
  * - Security Headers
  * - Daily Usage Counter (max 200 Calls/Tag) - KILL SWITCH
@@ -303,16 +303,17 @@ export default async (req, context) => {
     }
 
     // Prüfe Input-Länge (verhindert Kosten-Explosion durch riesige Inputs)
+    // 6000 Zeichen reichen aus, da Pivot-Button (Hypothese-Analyse) automatisch auf ~100 Wörter kürzt
     const inputText = body?.contents?.[0]?.parts?.[0]?.text || '';
     const inputLength = inputText.length;
 
-    if (inputLength > 2000) {
-      console.warn(`🚫 Input zu lang: ${inputLength} Zeichen (max: 2000)`);
+    if (inputLength > 6000) {
+      console.warn(`🚫 Input zu lang: ${inputLength} Zeichen (max: 6000)`);
       return new Response(
         JSON.stringify({ 
           error: 'Input too long',
-          message: `Input exceeds maximum length of 2000 characters. Your input: ${inputLength} characters.`,
-          maxLength: 2000,
+          message: `Input exceeds maximum length of 6000 characters. Your input: ${inputLength} characters.`,
+          maxLength: 6000,
           yourLength: inputLength
         }),
         { status: 400, headers }
