@@ -54,9 +54,12 @@ service cloud.firestore {
       }
     }
     
-    // ✅ Waitlist: Jeder kann sich eintragen, aber nur eigene Einträge lesen
+    // ✅ Waitlist: Jeder kann sich eintragen (auch ohne Auth für Coming Soon Seite)
     match /waitlist/{waitlistId} {
-      allow create: if request.auth != null;
+      // Erlaube Erstellen für alle (auch nicht-authentifizierte User für Coming Soon)
+      allow create: if request.resource.data.email != null 
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('.*@.*\\..*'); // Basis E-Mail Validierung
       // Erlaube Lesen für authentifizierte User (für syncUserProfile Query)
       // Die Query prüft where('email', '==', user.email), also nur eigene Einträge
       allow read: if request.auth != null;
