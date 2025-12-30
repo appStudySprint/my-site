@@ -136,15 +136,54 @@ async function callGeminiAPI(userPrompt, retryCount = 0, useSearch = false) {
       requestBody.tools = [{ googleSearch: {} }];
     }
 
+    // 🔒 Hole Firebase Auth Token für Backend-Authentifizierung
+    let authToken = null;
+    if (currentUser && typeof currentUser.getIdToken === 'function') {
+      try {
+        authToken = await currentUser.getIdToken();
+      } catch (tokenError) {
+        console.warn('[callGeminiAPI] Konnte Auth Token nicht abrufen:', tokenError);
+        // Fallback: Versuche es trotzdem (für Development)
+      }
+    }
+
+    // Erstelle Headers mit Auth Token
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
     const response = await fetch('/.netlify/functions/gemini-proxy', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
       body: JSON.stringify(requestBody)
     });
 
     // Behandle verschiedene HTTP-Status-Codes
+    if (response.status === 401) {
+      // Unauthorized - Auth Token fehlt oder ungültig
+      const errorText = await response.text();
+      console.error('401 Unauthorized:', errorText);
+      throw new Error('Authentifizierung fehlgeschlagen. Bitte melde dich erneut an.');
+    }
+    
+    if (response.status === 400) {
+      // Bad Request - Input zu lang oder ungültig
+      const errorData = await response.json().catch(() => ({ message: 'Invalid request' }));
+      if (errorData.message && errorData.message.includes('too long')) {
+        throw new Error(`Input zu lang: ${errorData.yourLength} Zeichen (max: ${errorData.maxLength}). Bitte kürze deine Eingabe.`);
+      }
+      throw new Error(errorData.message || 'Ungültige Anfrage');
+    }
+    
+    if (response.status === 408) {
+      // Request Timeout
+      throw new Error('Die Anfrage hat zu lange gedauert. Bitte versuche es mit kürzerem Input erneut.');
+    }
+    
     if (response.status === 429) {
       // Too Many Requests - Retry-Logik
       if (retryCount < 1) {

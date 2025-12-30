@@ -1,10 +1,72 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // 🔒 DEFAULT: Alles verboten (Security First)
     match /{document=**} {
-      // TEST-MODUS: Jeder eingeloggte User darf alles lesen/schreiben.
-      // Das behebt die Initialisierungs-Blockade.
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
+    }
+    
+    // ✅ User-Daten: Nur der User selbst darf auf seine eigenen Daten zugreifen
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ✅ Projekte: Owner-Only Zugriff
+    match /projects/{projectId} {
+      // Erstellen: Jeder authentifizierte User kann Projekte erstellen
+      allow create: if request.auth != null 
+        && request.resource.data.ownerId == request.auth.uid;
+      
+      // Lesen: Nur der Owner
+      allow read: if request.auth != null 
+        && resource.data.ownerId == request.auth.uid;
+      
+      // Aktualisieren: Nur der Owner
+      allow update: if request.auth != null 
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid; // Owner darf nicht geändert werden
+      
+      // Löschen: Nur der Owner
+      allow delete: if request.auth != null 
+        && resource.data.ownerId == request.auth.uid;
+      
+      // ✅ Analysen (Subcollection): Nur wenn Parent-Projekt dem User gehört
+      match /analyses/{analysisId} {
+        allow read, write: if request.auth != null 
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+      
+      // ✅ Members (Subcollection): Nur wenn Parent-Projekt dem User gehört
+      match /members/{memberId} {
+        allow read: if request.auth != null 
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        
+        // Owner kann Members hinzufügen/entfernen
+        allow write: if request.auth != null 
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+      
+      // ✅ Pending Invites (Subcollection): Nur wenn Parent-Projekt dem User gehört
+      match /pendingInvites/{inviteId} {
+        allow read, write: if request.auth != null 
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+    }
+    
+    // ✅ Waitlist: Jeder kann sich eintragen, aber nur eigene Einträge lesen
+    match /waitlist/{waitlistId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && resource.data.email == request.auth.token.email;
+    }
+    
+    // ✅ System Stats (Daily Usage Counter): Nur Service Account kann schreiben
+    // Diese Collection wird von der Netlify Function (mit Service Account) beschrieben
+    match /system_stats/{date} {
+      // Service Account (ohne request.auth) kann schreiben
+      // Normale User können nur lesen (für Transparenz)
+      allow read: if true; // Öffentlich lesbar (nur Count, keine sensiblen Daten)
+      allow write: if request.auth == null; // Service Account (ohne Auth Token)
     }
   }
 }

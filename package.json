@@ -22,6 +22,7 @@
     "vite": "^7.2.2"
   },
   "dependencies": {
-    "firebase": "^12.5.0"
+    "firebase": "^12.5.0",
+    "firebase-admin": "^13.6.0"
   }
 }
