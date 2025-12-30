@@ -458,6 +458,37 @@
 
     <main class="max-w-7xl mx-auto px-6 pb-12">
         
+        <!-- BETA CAP BANNER (Sold Out) -->
+        <div id="beta-cap-banner" class="hidden mb-8">
+            <div class="glass-panel p-8 border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-orange-500/10">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-white mb-4 flex items-center justify-center gap-2">
+                        <span>🚀</span>
+                        <span>Beta-Zugang voll ausgelastet!</span>
+                    </h3>
+                    <p class="text-gray-300 mb-6 max-w-2xl mx-auto">
+                        Vielen Dank für den riesigen Support! Wir haben unser Limit von 100 Testern für heute erreicht. 
+                        Wir skalieren unsere Server gerade. Trag dich in die Warteliste ein, um sofort Bescheid zu bekommen, 
+                        wenn wir wieder öffnen.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
+                        <input 
+                            type="email" 
+                            id="beta-waitlist-email" 
+                            placeholder="Deine E-Mail-Adresse" 
+                            class="flex-1 px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                        <button 
+                            id="beta-waitlist-submit" 
+                            class="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold rounded-lg transition-all duration-200"
+                        >
+                            Benachrichtigt mich
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- STEP 1: HYPOTHESE -->
         <div class="wizard-step" data-step="1">
             <section class="mb-16">

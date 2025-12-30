@@ -65,6 +65,91 @@ async function getAdmin() {
 }
 
 /**
+ * Prüft den globalen Beta-Counter (Hard Cap: 100 Analysen insgesamt)
+ * @returns {Promise<{allowed: boolean, count: number}>}
+ */
+async function checkGlobalBetaLimit() {
+  const projectId = process.env.FIREBASE_PROJECT_ID || Netlify?.env?.get('FIREBASE_PROJECT_ID');
+  
+  if (!projectId) {
+    console.warn('⚠️ FIREBASE_PROJECT_ID nicht gesetzt, überspringe Beta Counter');
+    return { allowed: true, count: 0 };
+  }
+
+  try {
+    const MAX_BETA_ANALYSES = 100;
+    const docId = 'global_beta_count';
+    
+    // Versuche Firebase Admin SDK zu nutzen (wenn verfügbar)
+    const adminInstance = await getAdmin();
+    if (adminInstance && adminInstance.apps.length > 0) {
+      try {
+        const db = adminInstance.firestore();
+        const docRef = db.collection('system_stats').doc(docId);
+        
+        // Lese aktuellen Count
+        const doc = await docRef.get();
+        const currentCount = doc.data()?.count || 0;
+        
+        if (currentCount >= MAX_BETA_ANALYSES) {
+          console.warn(`🚫 Beta-Limit erreicht (Hard Cap active): ${currentCount}/${MAX_BETA_ANALYSES}`);
+          return { allowed: false, count: currentCount };
+        }
+        
+        return { allowed: true, count: currentCount };
+      } catch (adminError) {
+        console.warn('[checkGlobalBetaLimit] Admin SDK Fehler:', adminError.message);
+        // Fallback: Erlaube Request (Fail-Safe)
+      }
+    }
+    
+    // Fallback: Wenn Admin SDK nicht verfügbar, erlaube Request (Fail-Safe)
+    console.warn('⚠️ Firebase Admin SDK nicht verfügbar, Beta Counter deaktiviert (Fail-Safe)');
+    return { allowed: true, count: 0 };
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Prüfen des Beta Limits:', error);
+    // Fail-Safe: Erlaube Request wenn Counter nicht funktioniert
+    return { allowed: true, count: 0 };
+  }
+}
+
+/**
+ * Inkrementiert den globalen Beta-Counter nach erfolgreichem API-Call
+ */
+async function incrementGlobalBetaCounter() {
+  const projectId = process.env.FIREBASE_PROJECT_ID || Netlify?.env?.get('FIREBASE_PROJECT_ID');
+  
+  if (!projectId) {
+    return;
+  }
+
+  try {
+    const docId = 'global_beta_count';
+    const adminInstance = await getAdmin();
+    
+    if (adminInstance && adminInstance.apps.length > 0) {
+      try {
+        const db = adminInstance.firestore();
+        const docRef = db.collection('system_stats').doc(docId);
+        
+        // Atomares Inkrement
+        await docRef.set({
+          count: adminInstance.firestore.FieldValue.increment(1),
+          lastUpdated: adminInstance.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        
+        console.log('✅ Beta Counter inkrementiert');
+      } catch (adminError) {
+        console.warn('[incrementGlobalBetaCounter] Admin SDK Fehler:', adminError.message);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Fehler beim Inkrementieren des Beta Counters:', error);
+  }
+}
+
+/**
  * Prüft und inkrementiert den Daily Usage Counter in Firestore
  * Nutzt Firebase Admin SDK (falls verfügbar) oder Fallback
  * @returns {Promise<{allowed: boolean, count: number}>}
@@ -241,6 +326,23 @@ export default async (req, context) => {
       );
     }
 
+    // 🔒 SCHRITT 3.5: Global Beta Counter (HARD CAP: 100 Analysen insgesamt)
+    const betaCheck = await checkGlobalBetaLimit();
+    
+    if (!betaCheck.allowed) {
+      console.warn(`🚫 Beta-Limit erreicht (Hard Cap active): ${betaCheck.count}/100`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Service Unavailable',
+          message: 'Beta-Zugang voll ausgelastet! Wir skalieren unsere Server gerade. Bitte versuche es später erneut.',
+          betaLimit: 100,
+          currentCount: betaCheck.count,
+          reason: 'beta_cap_reached'
+        }),
+        { status: 503, headers }
+      );
+    }
+
     // 🔒 SCHRITT 4: Daily Usage Counter (KILL SWITCH) - VOR dem Gemini Call
     const usageCheck = await checkDailyUsageLimit();
     
@@ -348,6 +450,12 @@ export default async (req, context) => {
     }
 
     console.log('✅ Successfully proxied request to Gemini API');
+
+    // 🔒 SCHRITT 7: Inkrementiere Beta Counter nach erfolgreichem Call
+    // (Asynchron, blockiert nicht die Response)
+    incrementGlobalBetaCounter().catch(err => {
+      console.warn('⚠️ Fehler beim Inkrementieren des Beta Counters (non-blocking):', err);
+    });
 
     // 5. Sende die erfolgreiche Antwort zurück zum Frontend
     return new Response(responseText, { 

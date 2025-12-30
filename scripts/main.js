@@ -389,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auth & Landing Page Setup - MUSS ZUERST passieren!
   setupAuthUi();
+  
+  // Setup Beta Waitlist Button
+  setupBetaWaitlistButton();
     
   loadLocalData();
   autosizeAll();
@@ -816,6 +819,102 @@ function setupUpgradeModal() {
   });
 }
 
+/**
+ * Prüft den globalen Beta Counter und zeigt/versteckt das Sold Out Banner
+ */
+async function checkBetaCap() {
+  try {
+    const docRef = doc(db, 'system_stats', 'global_beta_count');
+    const docSnap = await getDoc(docRef);
+    const betaCount = docSnap.exists() ? (docSnap.data()?.count || 0) : 0;
+    const MAX_BETA_ANALYSES = 100;
+    
+    const banner = document.getElementById('beta-cap-banner');
+    const analyzeButtons = document.querySelectorAll('[id^="analyze-"]');
+    const inputFields = document.querySelectorAll('#problem, #solution, #pitch, #persona_name, #persona_demographics, #persona_pains, #persona_gains, #mvp_features, #mvp_anti_features, #validation_method, #validation_success');
+    
+    if (betaCount >= MAX_BETA_ANALYSES) {
+      // Zeige Banner
+      if (banner) {
+        banner.classList.remove('hidden');
+      }
+      
+      // Verstecke Analyse-Buttons
+      analyzeButtons.forEach(btn => {
+        if (btn) {
+          btn.style.display = 'none';
+        }
+      });
+      
+      // Verstecke Input-Felder (optional - kann auch sichtbar bleiben)
+      // inputFields.forEach(field => {
+      //   if (field) field.style.display = 'none';
+      // });
+      
+      console.log(`🚫 Beta Cap erreicht: ${betaCount}/${MAX_BETA_ANALYSES}`);
+    } else {
+      // Verstecke Banner
+      if (banner) {
+        banner.classList.add('hidden');
+      }
+      
+      // Zeige Analyse-Buttons
+      analyzeButtons.forEach(btn => {
+        if (btn) {
+          btn.style.display = '';
+        }
+      });
+      
+      console.log(`✅ Beta Cap OK: ${betaCount}/${MAX_BETA_ANALYSES}`);
+    }
+  } catch (error) {
+    console.error('❌ Fehler beim Prüfen des Beta Caps:', error);
+    // Fail-Safe: Zeige alles normal an
+  }
+}
+
+/**
+ * Setup für Beta Waitlist Button im Banner
+ */
+function setupBetaWaitlistButton() {
+  const submitBtn = document.getElementById('beta-waitlist-submit');
+  const emailInput = document.getElementById('beta-waitlist-email');
+  
+  if (!submitBtn || !emailInput) return;
+  
+  submitBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    
+    if (!email || !email.includes('@')) {
+      showToast('Bitte gib eine gültige E-Mail-Adresse ein.', 'warning');
+      return;
+    }
+    
+    try {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Wird gespeichert...';
+      
+      await saveToWaitlist(email, true);
+      
+      showToast('✅ Du bist auf der Warteliste! Wir benachrichtigen dich, sobald wir wieder öffnen.', 'success');
+      emailInput.value = '';
+    } catch (error) {
+      console.error('Fehler beim Speichern in Warteliste:', error);
+      showToast('Fehler beim Speichern. Bitte versuche es erneut.', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Benachrichtigt mich';
+    }
+  });
+  
+  // Enter-Taste Support
+  emailInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      submitBtn.click();
+    }
+  });
+}
+
 async function saveToWaitlist(email, notify = true) {
   try {
     // Speichere in Warteliste-Collection
@@ -1123,6 +1222,9 @@ async function initializeForUser(user) {
   // SCHRITT 1: User-Profil synchronisieren (prüft IMMER waitlist Collection)
   console.log('[initializeForUser] syncUserProfile...');
   const profile = await syncUserProfile(user);
+  
+  // SCHRITT 1.5: Prüfe Beta Counter (Hard Cap: 100 Analysen)
+  await checkBetaCap();
   
   // SCHRITT 1: Routing basierend auf User-Status
   const appContainer = document.getElementById('app-container');
@@ -2639,6 +2741,21 @@ Antworte im Markdown-Format:
     return;
   }
 
+  // BETA CAP PRÜFUNG: Prüfe ganz am Anfang
+  try {
+    const docRef = doc(db, 'system_stats', 'global_beta_count');
+    const docSnap = await getDoc(docRef);
+    const betaCount = docSnap.exists() ? (docSnap.data()?.count || 0) : 0;
+    
+    if (betaCount >= 100) {
+      showToast('Beta-Zugang voll ausgelastet! Wir skalieren unsere Server gerade. Bitte versuche es später erneut.', 'warning');
+      return;
+    }
+  } catch (error) {
+    console.warn('⚠️ Fehler beim Prüfen des Beta Caps in analyzeSection:', error);
+    // Weiter mit Analyse (Fail-Safe)
+  }
+  
   // CHAOS MODE SCHUTZ: Prüfe ganz am Anfang
   if (typeof isChaosMode !== 'undefined' && isChaosMode) {
     console.warn('[analyzeSection] Chaos Mode aktiv, simuliere Analyse');
